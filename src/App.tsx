@@ -1,4 +1,4 @@
-import  { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
@@ -9,7 +9,14 @@ import FeesPage from './pages/Fee/FeesPage';
 import TimetablePage from './pages/Timetable/TimetablePage';
 import MessagesPage from './pages/Message/MessagesPage';
 import MarksPage from './pages/Marks/MarksPage';
+import AttendancePage from './pages/Attendance/AttendancePage';
 import { useAuthStore } from './lib/store';
+import AnnouncementsPage from './pages/Announcements/AnnouncementsPage';
+import CreateUserPage from './pages/CreateUsers/CreateUsers';
+import SuggestionsPage from './pages/Suggestions/SuggestionsPage';
+import ProfileSettings from './pages/Settings/ProfileSettings';
+import TeachersPage from './pages/Teachers/TeachersPage';
+import ClassesPage from './pages/Classes/ClassesPage';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { user, isLoading } = useAuthStore();
@@ -129,6 +136,78 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          <Route
+            path="/attendance"
+            element={
+              <ProtectedRoute>
+                <AttendancePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/announcements"
+            element={
+              <ProtectedRoute>
+                <AnnouncementsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/create-users"
+            element={
+              <ProtectedRoute>
+                 <RoleRoute allowedRoles={['admin', 'super_admin']}>
+                    <CreateUserPage />
+                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/suggestions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['parent']}>
+                  <SuggestionsPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <ProfileSettings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teachers"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin']}>
+                  <TeachersPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/classes"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin']}>
+                  <ClassesPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
         </Route>
         
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
