@@ -60,6 +60,13 @@ export interface Fee {
   paidDate?: string;
   status: 'paid' | 'pending' | 'overdue';
   receiptNumber?: string;
+  students?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    class_level: number;
+    section?: string;
+  };
 }
 
 export interface Mark {

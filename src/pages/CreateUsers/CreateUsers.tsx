@@ -18,7 +18,8 @@ export default function CreateUserPage() {
     qualification: '',
     joiningDate: '',
     address: '',
-    occupation: ''
+    occupation: '',
+    password: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -29,8 +30,9 @@ export default function CreateUserPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const hashedPassword = await bcrypt.hash('defaultPassword123', 10); // Generic password
-      const { error } = await supabase
+      const hashedPassword = await bcrypt.hash(formData.password, 10);
+      
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .insert({
           user_id_number: formData.userIdNumber,
@@ -40,16 +42,18 @@ export default function CreateUserPage() {
           role: formData.role,
           contact_number: formData.contactNumber,
           profile_image: ''
-        });
+        }).select().single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+      if (!profileData) throw new Error('Failed to create profile.');
 
-      // Add to teachers or parents table based on role
+      const newUserId = profileData.id;
+
       if (formData.role === 'teacher') {
         const { error: teacherError } = await supabase
           .from('teachers')
           .insert({
-            user_id: (await supabase.from('profiles').select('id').eq('user_id_number', formData.userIdNumber).single()).data?.id,
+            user_id: newUserId,
             first_name: formData.firstName,
             last_name: formData.lastName,
             subjects: formData.subjects,
@@ -64,7 +68,7 @@ export default function CreateUserPage() {
         const { error: parentError } = await supabase
           .from('parents')
           .insert({
-            user_id: (await supabase.from('profiles').select('id').eq('user_id_number', formData.userIdNumber).single()).data?.id,
+            user_id: newUserId,
             first_name: formData.firstName,
             last_name: formData.lastName,
             contact_number: formData.contactNumber,
@@ -76,13 +80,30 @@ export default function CreateUserPage() {
       }
 
       alert('User created successfully!');
+      setFormData({
+        userIdNumber: '',
+        role: 'teacher',
+        firstName: '',
+        lastName: '',
+        email: '',
+        contactNumber: '',
+        subjects: [],
+        classesTaught: [],
+        qualification: '',
+        joiningDate: '',
+        address: '',
+        occupation: '',
+        password: ''
+      });
+
     } catch (error) {
+      console.error('Error creating user:', error);
       alert('Error creating user: ' + (error as Error).message);
     }
   };
 
-  if (!user || user.role !== 'admin') {
-    return <div>Access Denied: Super Admin Only</div>;
+  if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+    return <div>Access Denied: Admins and Super Admins Only</div>;
   }
 
   return (
@@ -101,6 +122,18 @@ export default function CreateUserPage() {
                   type="text"
                   name="userIdNumber"
                   value={formData.userIdNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
                   onChange={handleChange}
                   className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
                   required

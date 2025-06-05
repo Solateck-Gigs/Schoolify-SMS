@@ -8,7 +8,10 @@ import {
   Calendar, 
   MessageCircle, 
   BarChart3, 
-  Settings 
+  Settings,
+  ClipboardCheck,
+  HelpCircle,
+  Bell
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 
@@ -46,26 +49,34 @@ export default function Sidebar() {
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
       { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/create-users', icon: <Users size={20} />, label: 'Create Users' }
     ];
     
     const teacherItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' }
+      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
     ];
     
     const parentItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/children', icon: <GraduationCap size={20} />, label: 'My Children' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' }
+      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
     ];
     
     switch (user?.role) {
