@@ -81,7 +81,7 @@ function App() {
             path="/students"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'teacher']}>
+                <RoleRoute allowedRoles={['admin', 'teacher', 'super_admin']}>
                   <StudentsPage />
                 </RoleRoute>
               </ProtectedRoute>
@@ -92,7 +92,7 @@ function App() {
             path="/children"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['parent']}>
+                <RoleRoute allowedRoles={['parent', 'super_admin']}>
                   <StudentsPage />
                 </RoleRoute>
               </ProtectedRoute>
@@ -130,7 +130,7 @@ function App() {
             path="/marks"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'teacher']}>
+                <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
                   <MarksPage />
                 </RoleRoute>
               </ProtectedRoute>

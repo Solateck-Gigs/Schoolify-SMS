@@ -13,8 +13,9 @@ export default function DashboardPage() {
   
   // Render appropriate dashboard based on user role
   switch (user.role) {
+    case 'super_admin':
+      return <AdminDashboard />;
     case 'admin':
-    case 'super_admin': // Add super_admin case
       return <AdminDashboard />;
     case 'teacher':
       return <TeacherDashboard />;

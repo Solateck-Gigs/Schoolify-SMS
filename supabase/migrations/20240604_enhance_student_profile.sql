@@ -53,6 +53,7 @@ ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE extracurricular_activities ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for emergency_contacts
+DROP POLICY IF EXISTS "Admins can manage emergency contacts" ON emergency_contacts;
 CREATE POLICY "Admins can manage emergency contacts"
     ON emergency_contacts FOR ALL
     USING (EXISTS (
@@ -61,6 +62,7 @@ CREATE POLICY "Admins can manage emergency contacts"
         AND role IN ('super_admin', 'admin')
     ));
 
+DROP POLICY IF EXISTS "Teachers can view emergency contacts" ON emergency_contacts;
 CREATE POLICY "Teachers can view emergency contacts"
     ON emergency_contacts FOR SELECT
     USING (EXISTS (
@@ -69,6 +71,7 @@ CREATE POLICY "Teachers can view emergency contacts"
         AND role = 'teacher'
     ));
 
+DROP POLICY IF EXISTS "Parents can view their children's emergency contacts" ON emergency_contacts;
 CREATE POLICY "Parents can view their children's emergency contacts"
     ON emergency_contacts FOR SELECT
     USING (EXISTS (
@@ -76,12 +79,13 @@ CREATE POLICY "Parents can view their children's emergency contacts"
         WHERE students.id = emergency_contacts.student_id
         AND students.parent_id IN (
             SELECT id FROM profiles
-            WHERE user_id::text = auth.uid()::text
+            WHERE id::text = auth.uid()::text
             AND role = 'parent'
         )
     ));
 
 -- Create policies for achievements
+DROP POLICY IF EXISTS "Admins can manage achievements" ON achievements;
 CREATE POLICY "Admins can manage achievements"
     ON achievements FOR ALL
     USING (EXISTS (
@@ -90,6 +94,7 @@ CREATE POLICY "Admins can manage achievements"
         AND role IN ('super_admin', 'admin')
     ));
 
+DROP POLICY IF EXISTS "Teachers can view and create achievements" ON achievements;
 CREATE POLICY "Teachers can view and create achievements"
     ON achievements FOR ALL
     USING (EXISTS (
@@ -98,6 +103,7 @@ CREATE POLICY "Teachers can view and create achievements"
         AND role = 'teacher'
     ));
 
+DROP POLICY IF EXISTS "Parents can view their children's achievements" ON achievements;
 CREATE POLICY "Parents can view their children's achievements"
     ON achievements FOR SELECT
     USING (EXISTS (
@@ -105,12 +111,13 @@ CREATE POLICY "Parents can view their children's achievements"
         WHERE students.id = achievements.student_id
         AND students.parent_id IN (
             SELECT id FROM profiles
-            WHERE user_id::text = auth.uid()::text
+            WHERE id::text = auth.uid()::text
             AND role = 'parent'
         )
     ));
 
 -- Create policies for extracurricular_activities
+DROP POLICY IF EXISTS "Admins can manage extracurricular activities" ON extracurricular_activities;
 CREATE POLICY "Admins can manage extracurricular activities"
     ON extracurricular_activities FOR ALL
     USING (EXISTS (
@@ -119,6 +126,7 @@ CREATE POLICY "Admins can manage extracurricular activities"
         AND role IN ('super_admin', 'admin')
     ));
 
+DROP POLICY IF EXISTS "Teachers can view and create extracurricular activities" ON extracurricular_activities;
 CREATE POLICY "Teachers can view and create extracurricular activities"
     ON extracurricular_activities FOR ALL
     USING (EXISTS (
@@ -127,6 +135,7 @@ CREATE POLICY "Teachers can view and create extracurricular activities"
         AND role = 'teacher'
     ));
 
+DROP POLICY IF EXISTS "Parents can view their children's extracurricular activities" ON extracurricular_activities;
 CREATE POLICY "Parents can view their children's extracurricular activities"
     ON extracurricular_activities FOR SELECT
     USING (EXISTS (
@@ -134,7 +143,7 @@ CREATE POLICY "Parents can view their children's extracurricular activities"
         WHERE students.id = extracurricular_activities.student_id
         AND students.parent_id IN (
             SELECT id FROM profiles
-            WHERE user_id::text = auth.uid()::text
+            WHERE id::text = auth.uid()::text
             AND role = 'parent'
         )
     ));

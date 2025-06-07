@@ -14,6 +14,7 @@ ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 
 -- Policies for announcements
 -- Admins can manage all announcements
+DROP POLICY IF EXISTS "Admins can manage announcements" ON announcements;
 CREATE POLICY "Admins can manage announcements"
     ON announcements FOR ALL
     USING (EXISTS (
@@ -23,6 +24,7 @@ CREATE POLICY "Admins can manage announcements"
     ));
 
 -- Teachers can view announcements (either general or for their classes)
+DROP POLICY IF EXISTS "Teachers can view announcements" ON announcements;
 CREATE POLICY "Teachers can view announcements"
     ON announcements FOR SELECT
     USING (
@@ -32,6 +34,7 @@ CREATE POLICY "Teachers can view announcements"
     );
 
 -- Parents can view announcements (either general or for their children's classes)
+DROP POLICY IF EXISTS "Parents can view announcements" ON announcements;
 CREATE POLICY "Parents can view announcements"
     ON announcements FOR SELECT
     USING (
