@@ -46,7 +46,7 @@ export default function Sidebar() {
   const getNavItems = () => {
     const adminItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
-      { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
+      { to: '/dashboard', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
       { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
@@ -62,7 +62,7 @@ export default function Sidebar() {
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
-      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/dashboard', icon: <BookOpen size={20} />, label: 'Marks' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
@@ -79,15 +79,30 @@ export default function Sidebar() {
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
     ];
     
+    const superAdminItems = [
+      { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
+      { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
+      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
+      { to: '/children', icon: <GraduationCap size={20} />, label: 'My Children' },
+      { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
+      { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
+      { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
+      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/create-users', icon: <Users size={20} />, label: 'Create Users' }
+    ];
+    
     switch (user?.role) {
-      case 'admin':
       case 'super_admin':
+        return superAdminItems;
+      case 'admin':
         return adminItems;
       case 'teacher':
-      case 'super_admin':
         return teacherItems;
       case 'parent':
-      case 'super_admin':
         return parentItems;
       default:
         return [];

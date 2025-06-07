@@ -14,15 +14,18 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for notification_preferences
+DROP POLICY IF EXISTS "Users can view their own notification preferences" ON notification_preferences;
 CREATE POLICY "Users can view their own notification preferences"
     ON notification_preferences FOR SELECT
     USING (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can update their own notification preferences" ON notification_preferences;
 CREATE POLICY "Users can update their own notification preferences"
     ON notification_preferences FOR UPDATE
     USING (auth.uid()::text = user_id::text)
     WITH CHECK (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can insert their own notification preferences" ON notification_preferences;
 CREATE POLICY "Users can insert their own notification preferences"
     ON notification_preferences FOR INSERT
     WITH CHECK (auth.uid()::text = user_id::text);

@@ -276,4 +276,5 @@ VALUES (
   'Super',
   'Admin',
   'super_admin'
-);
+)
+ON CONFLICT (user_id_number) DO NOTHING;
