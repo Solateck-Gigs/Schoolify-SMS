@@ -25,9 +25,13 @@ interface Message {
   createdAt: string;
 }
 
-export default function Header() {
+interface HeaderProps {
+  isMobileMenuOpen: boolean;
+  setIsMobileMenuOpen: (isOpen: boolean) => void;
+}
+
+export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: HeaderProps) {
   const { user, logout } = useAuthStore();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
@@ -282,14 +286,10 @@ export default function Header() {
                 className="flex items-center gap-2 p-2 text-gray-700 hover:text-gray-900 focus:outline-none"
               >
                 <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  {user?.profileImage ? (
-                    <img
-                      src={user.profileImage}
-                      alt={`${user.firstName} ${user.lastName}`}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User size={16} className="text-blue-600" />
+                  {user?.firstName && user?.lastName && (
+                    <span className="text-blue-600 font-medium">
+                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                    </span>
                   )}
                 </div>
                 <span className="hidden md:block text-sm font-medium">

@@ -1,104 +1,198 @@
 // lib/store.ts
 import { create } from 'zustand';
-import { supabase, customLogin, getCurrentUser } from './supabase'; // Your Supabase client, customLogin, and getCurrentUser function
+import api from '../services/api';
+import { getUserFromToken, isTokenExpired } from './jwt';
 
-type User = {
-  id: string;
-  role: string;
+// User type
+export type User = {
+  _id: string;
   firstName: string;
   lastName: string;
-  profileImage?: string; // Make profileImage optional based on your schema
+  email: string;
+  role: 'super_admin' | 'admin' | 'teacher' | 'parent' | 'student';
+  user_id_number: string;
+  phone?: string;
+  profileImage?: string;
+} | null;
+
+type Profile = {
+  _id: string;
+  user: string;
+  // Common fields that might exist in any profile
+  [key: string]: any;
 } | null;
 
 type AuthState = {
   user: User;
+  profile: Profile;
   isLoading: boolean;
   error: string | null;
+  isProfileComplete: boolean;
   login: (userIdNumber: string, password: string) => Promise<void>;
+  register: (userData: any) => Promise<void>;
+  completeProfile: (profileData: any) => Promise<void>;
   checkAuth: () => Promise<void>;
   logout: () => void;
+  getCurrentUserId: () => string | null;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  profile: null,
   isLoading: false,
   error: null,
+  isProfileComplete: false,
+
+  getCurrentUserId: () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    
+    const userInfo = getUserFromToken(token);
+    return userInfo?.id || null;
+  },
+
+  register: async (userData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/auth/register', userData);
+      const { token, user } = response.data;
+      localStorage.setItem('token', token);
+      set({ 
+        user, 
+        isLoading: false,
+        isProfileComplete: false,
+        profile: null
+      });
+    } catch (err: any) {
+      localStorage.removeItem('token');
+      set({ 
+        error: err.response?.data?.error || 'Registration failed', 
+        isLoading: false, 
+        user: null,
+        profile: null,
+        isProfileComplete: false
+      });
+      throw err;
+    }
+  },
 
   login: async (userIdNumber: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { user: loggedInUser } = await customLogin(userIdNumber, password); // Call the imported customLogin function
-      
-      // customLogin should return the full profile, so we can use it directly
-      const mappedUser = loggedInUser
-        ? {
-            id: loggedInUser.id,
-            role: loggedInUser.role ?? '',
-            firstName: loggedInUser.firstName ?? '',
-            lastName: loggedInUser.lastName ?? '',
-            profileImage: loggedInUser.profileImage ?? '',
-          }
-        : null;
+      const response = await api.post('/auth/login', { 
+        user_id_number: userIdNumber, 
+        password 
+      });
+      const { token, user, profileComplete, profileData } = response.data;
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      set({ 
+        user,
+        profile: profileData,
+        isProfileComplete: profileComplete,
+        isLoading: false 
+      });
+    } catch (err: any) {
+      localStorage.removeItem('token');
+      delete api.defaults.headers.common['Authorization'];
+      set({ 
+        error: err.response?.data?.error || 'Login failed', 
+        isLoading: false, 
+        user: null,
+        profile: null,
+        isProfileComplete: false
+      });
+      throw err;
+    }
+  },
 
-      set({ user: mappedUser, isLoading: false });
-
-    } catch (err) {
-      console.error('Login error:', err);
-      set({ error: (err as Error).message, isLoading: false });
+  completeProfile: async (profileData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/auth/complete-profile', profileData);
+      set({ 
+        profile: response.data.profile,
+        isProfileComplete: true,
+        isLoading: false 
+      });
+    } catch (err: any) {
+      set({ 
+        error: err.response?.data?.error || 'Failed to complete profile', 
+        isLoading: false 
+      });
+      throw err;
     }
   },
 
   checkAuth: async () => {
     set({ isLoading: true });
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
+      return;
+    }
+
+    // Check if token is expired
+    if (isTokenExpired(token)) {
+      localStorage.removeItem('token');
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
+      return;
+    }
+
+    // Get user ID from token
+    const userInfo = getUserFromToken(token);
+    if (!userInfo) {
+      localStorage.removeItem('token');
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
+      return;
+    }
+
     try {
-      const authUser = await getCurrentUser(); // Get the basic auth user from session
-
-      if (authUser) {
-        // If a user is found in the session, fetch their profile from the database
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('id, role, first_name, last_name, profile_image')
-          .eq('id', authUser.id) // Match by the auth user's ID
-          .single();
-
-        if (error) {
-          console.error('Error fetching profile for session user:', error);
-          // If profile fetching fails, maybe clear the session or handle appropriately
-           await supabase.auth.signOut();
-           set({ user: null, isLoading: false, error: 'Failed to load user profile.' });
-           return;
-        }
-
-        if (profile) {
-          // Map the profile data to your local User type
-          const mappedUser = {
-            id: profile.id,
-            role: profile.role ?? '',
-            firstName: profile.first_name ?? '',
-            lastName: profile.last_name ?? '',
-            profileImage: profile.profile_image ?? '',
-          };
-          set({ user: mappedUser, isLoading: false, error: null });
-        } else {
-           // User in session but no matching profile - something is wrong
-           console.error('User in session but no profile found.');
-           await supabase.auth.signOut(); // Clear the invalid session
-           set({ user: null, isLoading: false, error: 'User profile not found.' });
-        }
-
-      } else {
-        // No user in session
-        set({ user: null, isLoading: false, error: null });
-      }
-
+      // Use dynamic endpoint with user ID from token
+      const response = await api.get(`/users/${userInfo.id}`);
+      const { user, profile, isProfileComplete } = response.data;
+      set({ 
+        user,
+        profile,
+        isProfileComplete,
+        isLoading: false 
+      });
     } catch (err) {
-      console.error('checkAuth error:', err);
-      set({ user: null, isLoading: false, error: 'Authentication check failed.' });
+      localStorage.removeItem('token');
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
     }
   },
 
   logout: () => {
-    supabase.auth.signOut();
-    set({ user: null, error: null });
+    localStorage.removeItem('token');
+    delete api.defaults.headers.common['Authorization'];
+    set({ 
+      user: null,
+      profile: null,
+      isProfileComplete: false,
+      error: null,
+      isLoading: false 
+    });
   },
 }));

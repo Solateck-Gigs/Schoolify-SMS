@@ -7,7 +7,9 @@ import { Table, TableHead, TableRow, TableHeader, TableBody, TableCell } from '.
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import { useAuthStore } from '../../lib/store';
 import { Fee } from '../../types';
-import { supabase } from '../../lib/supabase';
+import api from '../../services/api';
+import { toast } from 'react-hot-toast';
+import { DataGrid } from '@mui/x-data-grid';
 
 export default function FeesPage() {
   const { user } = useAuthStore();
@@ -30,48 +32,29 @@ export default function FeesPage() {
   
   const fetchFees = async () => {
     setIsLoading(true);
-    let feesQuery = supabase
-      .from('fees')
-      .select(`
-        *,
-        students ( id, first_name, last_name, class_level, section )
-      `);
-
-    if (isParent && user?.id) {
-      const { data: children, error: childrenError } = await supabase
-        .from('students')
-        .select('id')
-        .eq('parent_id', user.id);
-
-      if (childrenError) {
-        console.error('Error fetching children:', childrenError);
-        setIsLoading(false);
-        return;
-      }
-
-      const childrenIds = children.map(child => child.id);
-
-      feesQuery = feesQuery.in('student_id', childrenIds);
-    } else if (isAdmin) {
-    } else {
-       setFees([]);
-       setIsLoading(false);
-       return;
+    try {
+      const { data } = await api.get('/fees');
+      setFees(data);
+    } catch (error) {
+      console.error('Error fetching fees:', error);
+      toast.error('Failed to fetch fees');
+      setFees([]);
+    } finally {
+      setIsLoading(false);
     }
-
-    const { data: feesData, error: feesError } = await feesQuery;
-
-    if (feesError) {
-      console.error('Error fetching fees:', feesError);
-    } else {
-      const processedFees = feesData?.map(fee => ({
-        ...fee,
-        students: fee.students
-      }));
-      setFees(processedFees || []);
+  };
+  
+  const handlePayment = async (feeId: string, amount: number) => {
+    try {
+      const { data } = await api.post(`/fees/${feeId}/payments`, { amount });
+      setFees(prev => prev.map(fee => 
+        fee.id === feeId ? { ...fee, ...data } : fee
+      ));
+      toast.success('Payment recorded successfully');
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast.error('Failed to record payment');
     }
-
-    setIsLoading(false);
   };
   
   const filteredFees = fees.filter(fee => {
@@ -100,6 +83,42 @@ export default function FeesPage() {
     { value: 'overdue', label: 'Overdue' },
   ];
   
+  const columns = [
+    { field: 'student_name', headerName: 'Student Name', width: 200,
+      valueGetter: (params: any) => 
+        `${params.row.students?.first_name} ${params.row.students?.last_name}` 
+    },
+    { field: 'class', headerName: 'Class', width: 150,
+      valueGetter: (params: any) => 
+        `${params.row.students?.class_level && `Class ${params.row.students.class_level}`}${params.row.students?.section && ` - ${params.row.students.section}`}`
+    },
+    { field: 'amount', headerName: 'Total Amount', width: 150,
+      valueGetter: (params: any) => `$${params.row.amount.toFixed(2)}`
+    },
+    { field: 'paid_amount', headerName: 'Paid Amount', width: 150,
+      valueGetter: (params: any) => `$${params.row.paid_amount.toFixed(2)}`
+    },
+    { field: 'balance', headerName: 'Balance', width: 150,
+      valueGetter: (params: any) => 
+        `$${(params.row.amount - params.row.paid_amount).toFixed(2)}`
+    },
+    { field: 'due_date', headerName: 'Due Date', width: 150,
+      valueGetter: (params: any) => 
+        new Date(params.row.due_date).toLocaleDateString()
+    },
+    { field: 'status', headerName: 'Status', width: 120 },
+    { field: 'actions', headerName: 'Actions', width: 200,
+      renderCell: (params: any) => (
+        <Button
+          onClick={() => handlePayment(params.row.id, 0)}
+          disabled={params.row.status === 'paid'}
+        >
+          Record Payment
+        </Button>
+      )
+    }
+  ];
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -111,10 +130,12 @@ export default function FeesPage() {
         {isAdmin && (
           <Button
             variant="primary"
-            leftIcon={<PlusCircle size={16} />}
             onClick={() => setIsAddingFee(true)}
           >
-            Record Payment
+            <span className="flex items-center gap-2">
+              <PlusCircle size={16} />
+              Record Payment
+            </span>
           </Button>
         )}
       </div>
@@ -160,78 +181,21 @@ export default function FeesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
           ) : (
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableHeader>{isParent ? 'Child' : 'Student'}</TableHeader>
-                  <TableHeader>Fee Type</TableHeader>
-                  <TableHeader>Amount</TableHeader>
-                  <TableHeader>Due Date</TableHeader>
-                  <TableHeader>Status</TableHeader>
-                  <TableHeader>Actions</TableHeader>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredFees.length > 0 ? (
-                  filteredFees.map((fee) => (
-                    <TableRow key={fee.id}>
-                      <TableCell className="font-medium">
-                        {fee.students?.first_name} {fee.students?.last_name}
-                        <div className="text-xs text-gray-500">
-                          {fee.students?.class_level && `Class ${fee.students.class_level}`}{fee.students?.section && ` - ${fee.students.section}`}
-                        </div>
-                      </TableCell>
-                      <TableCell className="capitalize">{fee.type}</TableCell>
-                      <TableCell>${fee.amount}</TableCell>
-                      <TableCell>{fee.dueDate}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          fee.status === 'paid'
-                            ? 'bg-green-100 text-green-800'
-                            : fee.status === 'pending'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-red-100 text-red-800'
-                        }`}>
-                          {fee.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {isAdmin && (
-                          <div className="flex space-x-2">
-                            {fee.status === 'paid' && (
-                              <>
-                                <Button variant="ghost" size="sm" leftIcon={<Printer size={16} />}>
-                                  Print
-                                </Button>
-                                <Button variant="ghost" size="sm" leftIcon={<Send size={16} />}>
-                                  Send
-                                </Button>
-                              </>
-                            )}
-                            {(fee.status === 'pending' || fee.status === 'overdue') && (
-                              <Button variant="success" size="sm">
-                                Record Payment
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                        {isParent && (
-                           <Button variant="outline" size="sm">
-                            View Details
-                           </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-6 text-gray-500">
-                      No fees found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            <div style={{ height: 600, width: '100%' }}>
+              <DataGrid<Fee>
+                rows={filteredFees}
+                columns={columns}
+                initialState={{
+                  pagination: {
+                    paginationModel: { pageSize: 10, page: 0 },
+                  },
+                }}
+                pageSizeOptions={[10]}
+                checkboxSelection={false}
+                disableRowSelectionOnClick
+                getRowId={(row) => row.id}
+              />
+            </div>
           )}
         </CardContent>
       </Card>

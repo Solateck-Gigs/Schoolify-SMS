@@ -5,6 +5,8 @@ import Input from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
 import { useAuthStore } from '../../lib/store';
 import { Message } from '../../types';
+import api from '../../services/api';
+import { toast } from 'react-hot-toast';
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -15,62 +17,25 @@ export default function MessagesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   useEffect(() => {
-    // Fetch contacts and messages from Supabase
-    // This is a mock implementation
     const fetchData = async () => {
-      // In a real app, this would be a Supabase query
-      const mockContacts = [
-        { id: 'contact1', name: 'John Smith', role: 'Teacher', subject: 'Mathematics', unread: 2 },
-        { id: 'contact2', name: 'Mary Johnson', role: 'Parent', child: 'Emma Johnson', unread: 0 },
-        { id: 'contact3', name: 'Robert Davis', role: 'Teacher', subject: 'Science', unread: 0 },
-        { id: 'contact4', name: 'Lisa Chen', role: 'Parent', child: 'Michael Chen', unread: 1 },
-      ];
-      
-      const mockMessages: Message[] = [
-        {
-          id: '1',
-          senderId: 'contact1',
-          receiverId: user?.id || '',
-          content: 'Hello, I wanted to discuss Emma\'s progress in mathematics.',
-          timestamp: '2023-05-15T14:30:00',
-          isRead: true,
-        },
-        {
-          id: '2',
-          senderId: user?.id || '',
-          receiverId: 'contact1',
-          content: 'Hi, that sounds good. What aspects of her performance would you like to discuss?',
-          timestamp: '2023-05-15T14:35:00',
-          isRead: true,
-        },
-        {
-          id: '3',
-          senderId: 'contact1',
-          receiverId: user?.id || '',
-          content: 'She\'s been doing well on homework, but I noticed she struggled on the recent quiz. I\'d like to suggest some additional practice problems.',
-          timestamp: '2023-05-15T14:40:00',
-          isRead: true,
-        },
-        {
-          id: '4',
-          senderId: 'contact1',
-          receiverId: user?.id || '',
-          content: 'Would you be available for a meeting next week to discuss this further?',
-          timestamp: '2023-05-15T14:42:00',
-          isRead: false,
-        },
-      ];
-      
-      setContacts(mockContacts);
-      setMessages(mockMessages);
-      
-      if (mockContacts.length > 0) {
-        setSelectedContact(mockContacts[0].id);
+      try {
+        // Fetch contacts (users you can message)
+        const { data: contactsData } = await api.get('/users'); // Adjust endpoint as needed
+        setContacts(contactsData);
+        
+        // Fetch messages (inbox)
+        const { data: messagesData } = await api.get('/messages/inbox');
+        setMessages(messagesData);
+        
+        if (contactsData.length > 0) {
+          setSelectedContact(contactsData[0].id);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
       }
     };
-    
     fetchData();
-  }, [user]);
+  }, []);
   
   const filteredContacts = contacts.filter(contact => 
     contact.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -83,22 +48,38 @@ export default function MessagesPage() {
   
   const selectedContactDetails = contacts.find(contact => contact.id === selectedContact);
   
-  const handleSendMessage = () => {
+  const fetchMessages = async () => {
+    try {
+      const { data } = await api.get('/messages');
+      setMessages(data);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast.error('Failed to fetch messages');
+    }
+  };
+  
+  const sendMessage = async (messageData: any) => {
+    try {
+      await api.post('/messages', messageData);
+      toast.success('Message sent successfully!');
+      fetchMessages(); // Refresh the list
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
+  };
+  
+  const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !selectedContact || !user) return;
-    
-    const newMsg: Message = {
-      id: `msg-${Date.now()}`,
-      senderId: user.id,
-      receiverId: selectedContact,
-      content: newMessage,
-      timestamp: new Date().toISOString(),
-      isRead: false,
-    };
-    
-    setMessages([...messages, newMsg]);
+    try {
+      await sendMessage({
+        receiver: selectedContact,
+        content: newMessage,
+      });
     setNewMessage('');
-    
-    // In a real app, you would also save this to Supabase
+    } catch (error) {
+      // Optionally show error
+    }
   };
   
   const formatTime = (timestamp: string) => {

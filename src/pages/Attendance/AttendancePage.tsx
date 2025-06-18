@@ -4,8 +4,8 @@ import { Card, CardHeader, CardContent } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../../components/ui/Table';
-import { supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { apiFetch } from '../../lib/api';
 
 interface Student {
   id: string;
@@ -44,42 +44,15 @@ export default function AttendancePage() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      // Fetch students based on role
-      let query = supabase
-        .from('students')
-        .select('*')
-        .eq('classLevel', selectedClass)
-        .eq('section', selectedSection);
-
-      // If teacher, only show students from their classes
-      if (user?.role === 'teacher') {
-        // Add teacher's class filter
-        query = query.eq('teacherId', user.id);
-      }
-      // If parent, only show their children
-      else if (user?.role === 'parent') {
-        query = query.eq('parentId', user.id);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
+      // Fetch students for the selected class and section
+      const studentsData = await apiFetch(`/students?classLevel=${selectedClass}&section=${selectedSection}`) as Student[];
       // Fetch attendance for the selected date
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('date', selectedDate)
-        .in('studentId', data.map(s => s.id));
-
-      if (attendanceError) throw attendanceError;
-
+      const attendanceData = await apiFetch(`/attendance?date=${selectedDate}&classLevel=${selectedClass}&section=${selectedSection}`) as { studentId: string; present: boolean }[];
       // Merge student data with attendance data
-      const studentsWithAttendance = data.map(student => ({
+      const studentsWithAttendance = studentsData.map((student) => ({
         ...student,
-        present: attendanceData?.find(a => a.studentId === student.id)?.present ?? false
+        present: attendanceData.find((a) => a.studentId === student.id)?.present ?? false
       }));
-
       setStudents(studentsWithAttendance);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -91,30 +64,15 @@ export default function AttendancePage() {
 
   const handleAttendanceChange = async (studentId: string, present: boolean) => {
     try {
-      // Only admin and teachers can mark attendance
       if (user?.role !== 'admin' && user?.role !== 'teacher') {
         toast.error('You do not have permission to mark attendance');
         return;
       }
-
-      const { error } = await supabase
-        .from('attendance')
-        .upsert({
-          studentId,
-          date: selectedDate,
-          present,
-          markedBy: user.id
-        });
-
-      if (error) throw error;
-
-      // Update local state
-      setStudents(prev => 
-        prev.map(student => 
-          student.id === studentId ? { ...student, present } : student
-        )
-      );
-
+      await apiFetch('/attendance', {
+        method: 'PUT',
+        body: JSON.stringify({ studentId, date: selectedDate, present, markedBy: user._id }),
+      });
+      setStudents(prev => prev.map(student => student.id === studentId ? { ...student, present } : student));
       toast.success('Attendance updated successfully');
     } catch (error) {
       console.error('Error updating attendance:', error);
@@ -124,25 +82,20 @@ export default function AttendancePage() {
 
   const saveAttendance = async () => {
     try {
-      // Only admin and teachers can save attendance
       if (user?.role !== 'admin' && user?.role !== 'teacher') {
         toast.error('You do not have permission to save attendance');
         return;
       }
-
       const attendanceRecords = students.map(student => ({
         studentId: student.id,
         date: selectedDate,
         present: student.present,
-        markedBy: user.id
+        markedBy: user._id
       }));
-
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(attendanceRecords);
-
-      if (error) throw error;
-
+      await apiFetch('/attendance/bulk', {
+        method: 'POST',
+        body: JSON.stringify(attendanceRecords),
+      });
       toast.success('Attendance saved successfully');
     } catch (error) {
       console.error('Error saving attendance:', error);
@@ -246,9 +199,10 @@ export default function AttendancePage() {
                             Present
                           </Button>
                           <Button
-                            variant={!student.present ? "danger" : "outline"}
+                            variant={!student.present ? "primary" : "outline"}
                             size="sm"
                             onClick={() => handleAttendanceChange(student.id, false)}
+                            className={!student.present ? "bg-red-600 hover:bg-red-700" : ""}
                           >
                             Absent
                           </Button>

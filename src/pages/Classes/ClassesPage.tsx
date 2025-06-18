@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import { apiFetch } from '../../lib/api';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/Table';
 import { Search, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/Dialog';
-import { Label } from '@/components/ui/Label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../../components/ui/Dialog';
+import Label from '../../components/ui/Label';
+import { useAuthStore } from '../../lib/store';
 
 interface Class {
   id: number;
@@ -42,16 +43,13 @@ export default function ClassesPage() {
 
   const fetchClasses = async () => {
     setLoading(true);
-    // Adjust select to join with profiles (for supervisor name) and grades if needed later
-    const { data, error } = await supabase
-      .from('classes')
-      .select('*');
-
-    if (error) {
+    try {
+      const classesData = await apiFetch('/classes');
+      setClasses(classesData);
+    } catch (error) {
       console.error('Error fetching classes:', error);
       toast.error('Failed to fetch classes');
-    } else {
-      setClasses(data || []);
+      setClasses([]);
     }
     setLoading(false);
   };
@@ -68,21 +66,18 @@ export default function ClassesPage() {
 
   const handleAddClass = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('classes')
-      .insert({
+    try {
+      const newClass = {
         name: newClassData.name,
         capacity: parseInt(newClassData.capacity),
-        supervisorId: newClassData.supervisorId || null, // Handle optional supervisor
+        supervisorId: newClassData.supervisorId || null,
         gradeId: parseInt(newClassData.gradeId),
-      })
-      .select('*');
-
-    if (error) {
-      console.error('Error adding class:', error);
-      toast.error('Failed to add class');
-    } else if (data && data.length > 0) {
-      setClasses(prev => [...prev, data[0]]);
+      };
+      const classObj = await apiFetch('/classes', {
+        method: 'POST',
+        body: JSON.stringify(newClass),
+      });
+      setClasses(prev => [...prev, classObj]);
       toast.success('Class added successfully');
       setIsAddModalOpen(false);
       setNewClassData({
@@ -91,7 +86,8 @@ export default function ClassesPage() {
         supervisorId: '',
         gradeId: '',
       });
-    } else {
+    } catch (error) {
+      console.error('Error adding class:', error);
         toast.error('Failed to add class');
     }
     setLoading(false);
@@ -100,26 +96,23 @@ export default function ClassesPage() {
    const handleEditClass = async () => {
     if (!selectedClass) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('classes')
-      .update({
+    try {
+      const updatedClass = {
         name: editClassData.name,
         capacity: parseInt(editClassData.capacity),
         supervisorId: editClassData.supervisorId || null,
         gradeId: parseInt(editClassData.gradeId),
-      })
-      .eq('id', selectedClass.id)
-      .select('*');
-
-    if (error) {
-      console.error('Error updating class:', error);
-      toast.error('Failed to update class');
-    } else if (data && data.length > 0) {
-      setClasses(prev => prev.map(cls => cls.id === data[0].id ? data[0] : cls));
+      };
+      const classObj = await apiFetch(`/classes/${selectedClass.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedClass),
+      });
+      setClasses(prev => prev.map(cls => cls.id === classObj.id ? classObj : cls));
       toast.success('Class updated successfully');
       setIsEditModalOpen(false);
       setSelectedClass(null);
-    } else {
+    } catch (error) {
+      console.error('Error updating class:', error);
         toast.error('Failed to update class');
     }
     setLoading(false);
@@ -128,17 +121,13 @@ export default function ClassesPage() {
   const handleDeleteClass = async (classId: number) => {
     if (window.confirm('Are you sure you want to delete this class?')) {
       setLoading(true);
-      const { error } = await supabase
-        .from('classes')
-        .delete()
-        .eq('id', classId);
-
-      if (error) {
-        console.error('Error deleting class:', error);
-        toast.error('Failed to delete class');
-      } else {
+      try {
+        await apiFetch(`/classes/${classId}`, { method: 'DELETE' });
         setClasses(prev => prev.filter(cls => cls.id !== classId));
         toast.success('Class deleted successfully');
+      } catch (error) {
+        console.error('Error deleting class:', error);
+        toast.error('Failed to delete class');
       }
       setLoading(false);
     }

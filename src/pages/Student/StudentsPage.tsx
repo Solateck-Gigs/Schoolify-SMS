@@ -7,10 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import Button from '../../components/ui/Button';
 import { Search, PlusCircle, Trash2, Edit } from 'lucide-react';
 import StudentProfile from '../../components/StudentProfile';
-import { supabase } from '../../lib/supabase';
 import AddStudentForm from '../../components/AddStudentForm';
 import { toast } from 'react-hot-toast';
 import EditStudentForm from '../../components/EditStudentForm';
+import api from '../../services/api';
 
 interface Student {
   id: string;
@@ -71,7 +71,7 @@ interface ExtracurricularActivity {
 }
 
 export default function StudentsPage() {
-  const { user } = useAuthStore();
+  const { user, getCurrentUserId } = useAuthStore();
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -91,87 +91,15 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       setIsLoading(true);
+      const userId = getCurrentUserId();
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
       
-      // Fetch basic student information
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select(`
-          *,
-          emergency_contacts (
-            name,
-            relationship,
-            phone
-          ),
-          achievements (
-            id,
-            title,
-            date,
-            description,
-            category
-          ),
-          extracurricular_activities (
-            id,
-            name,
-            role,
-            start_date,
-            end_date
-          )
-        `);
-
-      if (studentsError) throw studentsError;
-
-      // Fetch attendance data
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('student_id, status, date')
-        .gte('date', new Date(new Date().getFullYear(), 0, 1).toISOString());
-
-      if (attendanceError) throw attendanceError;
-
-      // Fetch academic performance
-      const { data: marksData, error: marksError } = await supabase
-        .from('marks')
-        .select('student_id, subject_id, marks, total_marks, exam_type, date')
-        .gte('date', new Date(new Date().getFullYear(), 0, 1).toISOString());
-
-      if (marksError) throw marksError;
-
-      // Process and combine the data
-      const processedStudents = studentsData.map(student => {
-        // Calculate attendance statistics
-        const studentAttendance = attendanceData.filter(a => a.student_id === student.id);
-        const attendance = {
-          present: studentAttendance.filter(a => a.status === 'present').length,
-          absent: studentAttendance.filter(a => a.status === 'absent').length,
-          late: studentAttendance.filter(a => a.status === 'late').length,
-          total: studentAttendance.length
-        };
-
-        // Process academic performance
-        const studentMarks = marksData.filter(m => m.student_id === student.id);
-        const academicPerformance = studentMarks.map(mark => ({
-          subject: mark.subject_id, // You might want to join with subjects table to get the name
-          grade: calculateGrade(mark.marks, mark.total_marks),
-          score: Math.round((mark.marks / mark.total_marks) * 100),
-          term: mark.exam_type,
-          year: new Date(mark.date).getFullYear().toString()
-        }));
-
-        return {
-          ...student,
-          emergencyContacts: student.emergency_contacts,
-          achievements: student.achievements,
-          extracurricularActivities: student.extracurricular_activities.map((activity: ExtracurricularActivity) => ({
-            ...activity,
-            startDate: activity.start_date,
-            endDate: activity.end_date
-          })),
-          attendance,
-          academicPerformance
-        };
-      });
-
-      setStudents(processedStudents);
+      // Fetch students from backend
+      const { data } = await api.get('/admin/students');
+      setStudents(data);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast.error('Failed to load students.');
@@ -233,59 +161,26 @@ export default function StudentsPage() {
   const handleDeleteStudent = async (studentId: string) => {
     if (window.confirm('Are you sure you want to delete this student?')) {
       try {
-        // Delete related records first due to foreign key constraints
-        // This assumes CASCADE DELETE is not set up in your database for all relations
-        // If you have CASCADE DELETE set up, these might not be necessary or should be verified
-
-        // Delete emergency contacts
-        const { error: emergencyContactsError } = await supabase
-          .from('emergency_contacts')
-          .delete()
-          .eq('student_id', studentId);
-        if (emergencyContactsError) throw emergencyContactsError;
-
-        // Delete achievements
-        const { error: achievementsError } = await supabase
-           .from('achievements')
-           .delete()
-           .eq('student_id', studentId);
-         if (achievementsError) throw achievementsError;
-
-         // Delete extracurricular activities
-         const { error: extracurricularActivitiesError } = await supabase
-           .from('extracurricular_activities')
-           .delete()
-           .eq('student_id', studentId);
-         if (extracurricularActivitiesError) throw extracurricularActivitiesError;
-
-        // Delete attendance records
-        const { error: attendanceError } = await supabase
-           .from('attendance')
-           .delete()
-           .eq('student_id', studentId);
-        if (attendanceError) throw attendanceError;
-
-        // Delete marks
-        const { error: marksError } = await supabase
-           .from('marks')
-           .delete()
-           .eq('student_id', studentId);
-        if (marksError) throw marksError;
-
-        // Finally, delete the student record
-        const { error: studentError } = await supabase
-          .from('students')
-          .delete()
-          .eq('id', studentId);
-
-        if (studentError) throw studentError;
-
+        // Use backend API to delete student and related records
+        await api.delete(`/students/profile/${studentId}`);
         toast.success('Student deleted successfully!');
         fetchStudents(); // Refresh the list
       } catch (error) {
         console.error('Error deleting student:', error);
         toast.error('Failed to delete student.');
       }
+    }
+  };
+
+  const handleSearch = async (searchTerm: string) => {
+    try {
+      const { data } = await api.get('/students', {
+        params: { search: searchTerm }
+      });
+      setStudents(data);
+    } catch (error) {
+      console.error('Error searching students:', error);
+      toast.error('Failed to search students');
     }
   };
 
@@ -301,11 +196,14 @@ export default function StudentsPage() {
           </Button>
           {isSuperAdmin && (
             <Button
-              variant="danger"
-              leftIcon={<Trash2 size={16} />}
+              variant="primary"
+              className="bg-red-600 hover:bg-red-700"
               onClick={() => handleDeleteStudent(selectedStudent.id)}
             >
-              Delete Student
+              <span className="flex items-center gap-2">
+                <Trash2 size={16} />
+                Delete Student
+              </span>
             </Button>
           )}
         </div>
@@ -333,10 +231,12 @@ export default function StudentsPage() {
         {isAdmin && (
           <Button
             variant="primary"
-            leftIcon={<PlusCircle size={16} />}
             onClick={() => setShowAddStudentForm(true)}
           >
-            Add New Student
+            <span className="flex items-center gap-2">
+              <PlusCircle size={16} />
+              Add New Student
+            </span>
           </Button>
         )}
       </div>
@@ -374,15 +274,16 @@ export default function StudentsPage() {
             </div>
           ) : (
             <Table>
-              <TableHeader>
+              <TableHead>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHeader>Name</TableHeader>
+                  <TableHeader>Class</TableHeader>
+                  <TableHeader>Contact</TableHeader>
+                  <TableHeader>Status</TableHeader>
+                  <TableHeader>Actions</TableHeader>
+                  {isSuperAdmin && <TableHeader>Manage</TableHeader>}
                 </TableRow>
-              </TableHeader>
+              </TableHead>
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>
@@ -444,20 +345,25 @@ export default function StudentsPage() {
                            <Button
                               variant="outline"
                               size="sm"
-                              leftIcon={<Edit size={16} />}
                               onClick={() => handleEditStudent(student)}
                               title="Edit Student"
                            >
-                             Edit
+                              <span className="flex items-center gap-2">
+                                <Edit size={16} />
+                                Edit
+                              </span>
                            </Button>
                            <Button
-                              variant="danger"
+                              variant="primary"
+                              className="bg-red-600 hover:bg-red-700"
                               size="sm"
-                              leftIcon={<Trash2 size={16} />}
                               onClick={() => handleDeleteStudent(student.id)}
                               title="Delete Student"
                            >
-                             Delete
+                              <span className="flex items-center gap-2">
+                                <Trash2 size={16} />
+                                Delete
+                              </span>
                            </Button>
                          </div>
                       </TableCell>

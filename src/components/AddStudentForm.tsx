@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useForm } from 'react-hook-form';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import Select from './ui/Select';
-import { Label } from './ui/Label';
+import Label from './ui/Label';
+import api from '../services/api';
+import { toast } from 'react-hot-toast';
 
 interface AddStudentFormProps {
   onSuccess: () => void; // Callback to run on successful student addition
@@ -20,7 +22,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
     firstName: '',
     lastName: '',
     dateOfBirth: '',
-    gender: '' as 'male' | 'female' | 'other' | '',
+    gender: '' as 'male' | 'female' |'',
     enrollmentDate: '',
     classLevel: '' as number | '',
     section: '',
@@ -41,6 +43,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
   const [parentOptions, setParentOptions] = useState<ParentOption[]>([]);
   const [loadingParents, setLoadingParents] = useState(false);
   const [selectedParentName, setSelectedParentName] = useState(''); // To display selected parent's name
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch parents when search term changes (with a debounce in a real app)
   useEffect(() => {
@@ -50,31 +53,22 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
         return;
       }
       setLoadingParents(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'parent')
-        .ilike('first_name', `%${parentSearchTerm}%`) // Search by first name
-        .or(`last_name.ilike.%${parentSearchTerm}%`); // Or by last name
-
-      if (error) {
+      try {
+        const parents = await api.get('/parents/search', { params: { search: parentSearchTerm } });
+        setParentOptions(parents.data.map((parent: any) => ({
+          value: parent._id || parent.id,
+          label: `${parent.first_name} ${parent.last_name}`,
+        })));
+      } catch (error) {
         console.error('Error fetching parents:', error);
         setParentOptions([]);
-      } else {
-        setParentOptions(data?.map(parent => ({
-          value: parent.id,
-          label: `${parent.first_name} ${parent.last_name}`,
-        })) || []);
       }
       setLoadingParents(false);
     };
-
     const debounceTimer = setTimeout(() => {
       fetchParents();
-    }, 300); // Debounce search to avoid too many requests
-
+    }, 300);
     return () => clearTimeout(debounceTimer);
-
   }, [parentSearchTerm]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -115,60 +109,46 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      // Basic validation (more robust validation can be added)
       if (!formData.firstName || !formData.lastName || !formData.dateOfBirth || !formData.gender || !formData.enrollmentDate || !formData.classLevel || !formData.parentId) {
         alert('Please fill in all required fields.');
         return;
       }
+      // Create student via backend
+      const response = await api.post('/students', {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        address: formData.address,
+        parent_id: formData.parentId,
+        class_id: formData.classLevel,
+        medical_conditions: formData.medicalConditions.length > 0 ? formData.medicalConditions : null,
+        allergies: formData.allergies.length > 0 ? formData.allergies : null,
+        special_needs: formData.specialNeeds.length > 0 ? formData.specialNeeds : null,
+        notes: formData.notes || null,
+      });
 
-      // Insert into students table
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .insert({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          date_of_birth: formData.dateOfBirth,
-          gender: formData.gender,
-          enrollment_date: formData.enrollmentDate,
-          class_level: formData.classLevel,
-          section: formData.section || null,
-          parent_id: formData.parentId,
-          address: formData.address || null,
-          contact_number: formData.contactNumber || null,
-          email: formData.email || null,
-          profile_image: formData.profileImage || null,
-          blood_type: formData.bloodType || null,
-          medical_conditions: formData.medicalConditions.length > 0 ? formData.medicalConditions : null,
-          allergies: formData.allergies.length > 0 ? formData.allergies : null,
-          special_needs: formData.specialNeeds.length > 0 ? formData.specialNeeds : null,
-          notes: formData.notes || null,
-        }).select().single(); // Select the inserted data to get the student ID
-
-      if (studentError) throw studentError;
-
-      const newStudentId = studentData.id;
-
-      // Insert emergency contacts if any
+      // Add emergency contacts if any
       if (formData.emergencyContacts.length > 0) {
-        const contactsToInsert = formData.emergencyContacts.map(contact => ({
-          student_id: newStudentId,
-          name: contact.name,
-          relationship: contact.relationship,
-          phone: contact.phone,
-          // email and address fields from schema are not in this basic form yet
-        }));
-        const { error: contactsError } = await supabase
-          .from('emergency_contacts')
-          .insert(contactsToInsert);
-        if (contactsError) throw contactsError;
+        await api.post('/emergency-contacts', {
+          student_id: response.data.id,
+          contacts: formData.emergencyContacts.map(contact => ({
+            name: contact.name,
+            relationship: contact.relationship,
+            phone: contact.phone,
+          })),
+        });
       }
 
-      alert('Student added successfully!');
-      onSuccess(); // Call the success callback
+      toast.success('Student added successfully!');
+      onSuccess();
     } catch (error) {
       console.error('Error adding student:', error);
-      alert('Error adding student. Please try again.');
+      toast.error('Failed to add student');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -177,7 +157,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
     { value: '', label: 'Select Gender' },
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
-    { value: 'other', label: 'Other' },
+    
   ];
 
   const classLevelOptions = [
@@ -318,7 +298,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onSuccess, onCancel }) 
       {/* Form Actions */}
       <div className="flex justify-end space-x-4">
         <Button variant="outline" type="button" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" variant="primary">Add Student</Button>
+        <Button type="submit" variant="primary" disabled={isSubmitting}>Add Student</Button>
       </div>
     </form>
   );

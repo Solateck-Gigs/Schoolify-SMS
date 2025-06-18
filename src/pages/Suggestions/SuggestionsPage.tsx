@@ -1,47 +1,57 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../lib/store';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
-import { Label } from '../../components/ui/Label';
+import Label from '../../components/ui/Label';
+import api from '../../services/api';
+import { toast } from 'react-hot-toast';
+
+interface Suggestion {
+  id: string;
+  content: string;
+  category: string;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+  };
+}
 
 export default function SuggestionsPage() {
   const { user } = useAuthStore();
   const [submissionType, setSubmissionType] = useState('suggestion' as 'suggestion' | 'question');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [newSuggestion, setNewSuggestion] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+
+  const fetchSuggestions = async () => {
+    try {
+      const { data } = await api.get('/suggestions');
+      setSuggestions(data);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+      toast.error('Failed to fetch suggestions');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !content.trim()) return;
-
-    setIsSubmitting(true);
+    if (!newSuggestion.trim()) return;
 
     try {
-      // Need to determine receiver_id (e.g., an admin user's profile ID)
-      // For now, we'll use a placeholder or potentially send to a designated admin
-      const receiverId = 'PLACEHOLDER_ADMIN_ID'; // !!! REPLACE WITH ACTUAL ADMIN ID !!!
-
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          sender_id: user.id,
-          receiver_id: receiverId,
-          content: content.trim(),
-          type: submissionType,
-        });
-
-      if (error) throw error;
-
-      alert('Your submission has been sent.');
-      setContent(''); // Clear form
-
+      const { data } = await api.post('/suggestions', {
+        content: newSuggestion,
+        category: selectedCategory
+      });
+      setSuggestions(prev => [...prev, data]);
+      setNewSuggestion('');
+      toast.success('Suggestion submitted successfully!');
     } catch (error) {
-      console.error('Error sending submission:', error);
-      alert('Failed to send submission. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error submitting suggestion:', error);
+      toast.error('Failed to submit suggestion');
     }
   };
 
