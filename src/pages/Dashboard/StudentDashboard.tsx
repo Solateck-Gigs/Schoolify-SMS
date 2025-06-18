@@ -1,61 +1,80 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Card, CardContent, Grid, CircularProgress, Alert } from '@mui/material';
 import { useAuthStore } from '../../lib/store';
-import { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { BookOpen, Clock, Award, Target, Calendar, TrendingUp } from 'lucide-react';
 
 interface StudentStats {
-  attendance: {
-    present: number;
-    absent: number;
-    late: number;
-    total: number;
+  academicPerformance: {
+    overallGrade: string;
+    gpa: number;
+    rank: number;
+    totalStudentsInClass: number;
+    subjectGrades: {
+      [subject: string]: string;
+    };
   };
-  grades: {
-    currentAverage: number;
-    lastTermAverage: number;
-    subjects: {
-      name: string;
-      grade: string;
-      score: number;
-    }[];
+  attendance: {
+    totalDays: number;
+    presentDays: number;
+    absentDays: number;
+    attendancePercentage: number;
+    lateArrivals: number;
   };
   fees: {
-    totalDue: number;
-    totalPaid: number;
-    nextDueDate: string;
+    totalFees: number;
+    paidAmount: number;
+    pendingAmount: number;
+    paymentStatus: string;
+  };
+  behavior: {
+    conduct: string;
+    disciplinaryActions: number;
+    achievements: string[];
   };
 }
 
 const StudentDashboard: React.FC = () => {
-  const { user } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, getCurrentUserId } = useAuthStore();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<StudentStats | null>(null);
 
-  useEffect(() => {
-    const fetchStudentStats = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        // Fetch student statistics
-        const response = await api.get(`/students/profile/${user?._id}/stats`);
-        setStats(response.data);
-      } catch (err: any) {
-        console.error('Error fetching student stats:', err);
-        setError(err.response?.data?.error || 'Failed to load student data');
-      } finally {
-        setIsLoading(false);
+  const fetchStudentStats = async () => {
+    try {
+      setLoading(true);
+      const userId = getCurrentUserId();
+      if (!userId) {
+        setError('User not authenticated');
+        return;
       }
-    };
+      
+      // First get user data to find the student profile
+      const userResponse = await api.get(`/users/${userId}`);
+      const studentId = userResponse.data.profile?._id;
+      
+      if (!studentId) {
+        setError('Student profile not found');
+        return;
+      }
+      
+      const response = await api.get(`/students/profile/${studentId}/stats`);
+      setStats(response.data);
+    } catch (err: any) {
+      console.error('Error fetching student stats:', err);
+      setError(err.response?.data?.error || 'Error fetching student statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (user?._id) {
       fetchStudentStats();
     }
   }, [user?._id]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
         <CircularProgress />
@@ -79,7 +98,7 @@ const StudentDashboard: React.FC = () => {
     );
   }
 
-  const attendancePercentage = (stats.attendance.present / stats.attendance.total) * 100;
+  const attendancePercentage = (stats.attendance.presentDays / stats.attendance.totalDays) * 100;
 
   return (
     <Box>
@@ -100,13 +119,13 @@ const StudentDashboard: React.FC = () => {
               </Typography>
               <Box mt={2}>
                 <Typography variant="body2">
-                  Present: {stats.attendance.present} days
+                  Present: {stats.attendance.presentDays} days
                 </Typography>
                 <Typography variant="body2">
-                  Absent: {stats.attendance.absent} days
+                  Absent: {stats.attendance.absentDays} days
                 </Typography>
                 <Typography variant="body2">
-                  Late: {stats.attendance.late} days
+                  Late: {stats.attendance.lateArrivals} days
                 </Typography>
               </Box>
             </CardContent>
@@ -121,17 +140,18 @@ const StudentDashboard: React.FC = () => {
                 Academic Performance
               </Typography>
               <Typography variant="h3" color="primary">
-                {stats.grades.currentAverage.toFixed(1)}%
+                {stats.academicPerformance.gpa.toFixed(1)}%
               </Typography>
               <Box mt={2}>
                 <Typography variant="body2">
-                  Previous Term: {stats.grades.lastTermAverage.toFixed(1)}%
+                  Overall Grade: {stats.academicPerformance.overallGrade}
                 </Typography>
-                {stats.grades.subjects.map((subject, index) => (
-                  <Typography key={index} variant="body2">
-                    {subject.name}: {subject.grade} ({subject.score}%)
-                  </Typography>
-                ))}
+                <Typography variant="body2">
+                  GPA: {stats.academicPerformance.gpa.toFixed(2)}
+                </Typography>
+                <Typography variant="body2">
+                  Rank: {stats.academicPerformance.rank}
+                </Typography>
               </Box>
             </CardContent>
           </Card>
@@ -145,17 +165,17 @@ const StudentDashboard: React.FC = () => {
                 Fees Status
               </Typography>
               <Typography variant="h3" color="primary">
-                ${stats.fees.totalPaid}
+                ${stats.fees.paidAmount}
               </Typography>
               <Box mt={2}>
                 <Typography variant="body2">
-                  Total Due: ${stats.fees.totalDue}
+                  Total Fees: ${stats.fees.totalFees}
                 </Typography>
                 <Typography variant="body2">
-                  Balance: ${stats.fees.totalDue - stats.fees.totalPaid}
+                  Pending Amount: ${stats.fees.pendingAmount}
                 </Typography>
                 <Typography variant="body2">
-                  Next Due Date: {new Date(stats.fees.nextDueDate).toLocaleDateString()}
+                  Payment Status: {stats.fees.paymentStatus}
                 </Typography>
               </Box>
             </CardContent>

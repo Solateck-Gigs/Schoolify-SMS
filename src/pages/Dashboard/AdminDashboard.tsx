@@ -1,31 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Typography,
   Card,
   CardContent,
-  Typography,
+  Grid,
+  CircularProgress,
+  Alert,
+  FormControl,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  Tabs,
+  Tab,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  Alert,
-  Tabs,
-  Tab,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent
+  TableRow
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { Grid, GridProps } from '@mui/material';
-import { useAuthStore } from '../../lib/store';
-import api from '../../services/api';
 import {
+  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
@@ -34,9 +31,10 @@ import {
   Tooltip,
   Legend,
   BarChart,
-  Bar,
-  ResponsiveContainer
+  Bar
 } from 'recharts';
+import { useAuthStore } from '../../lib/store';
+import api from '../../services/api';
 import { Users, GraduationCap, Receipt, Clock } from 'lucide-react';
 
 interface Student {
@@ -47,10 +45,6 @@ interface Student {
     name: string;
     section: string;
   };
-  parent: {
-    first_name: string;
-    last_name: string;
-  };
 }
 
 interface Class {
@@ -58,114 +52,7 @@ interface Class {
   name: string;
   section: string;
   academic_year: string;
-  teacher: {
-    first_name: string;
-    last_name: string;
-  };
 }
-
-interface StudentPerformance {
-  student: Student;
-  performance: {
-    totalAssessments: number;
-    averageScore: number;
-    subjectAverages: {
-      [key: string]: {
-        total: number;
-        count: number;
-        average: number;
-      };
-    };
-  };
-}
-
-interface StudentAttendance {
-  student: Student;
-  attendance: {
-    totalDays: number;
-    present: number;
-    absent: number;
-    late: number;
-    presentPercentage: number;
-    absentPercentage: number;
-    latePercentage: number;
-  };
-}
-
-interface StudentFees {
-  student: Student;
-  fees: {
-    totalFees: number;
-    paidFees: number;
-    outstandingFees: number;
-    paymentStatus: {
-      paid: number;
-      partially_paid: number;
-      unpaid: number;
-    };
-  };
-}
-
-interface ClassStatistics {
-  class: Class;
-  statistics: {
-    totalStudents: number;
-    performance: {
-      averageScore: number;
-      gradeDistribution: {
-        'A+': number;
-        'A': number;
-        'B+': number;
-        'B': number;
-        'C+': number;
-        'C': number;
-        'F': number;
-      };
-      subjectAverages: {
-        [key: string]: {
-          total: number;
-          count: number;
-          average: number;
-        };
-      };
-    };
-    attendance: {
-      totalDays: number;
-      averageAttendance: number;
-      present: number;
-      absent: number;
-      late: number;
-    };
-  };
-}
-
-interface DashboardStats {
-  totalStudents: number;
-  totalTeachers: number;
-  totalFeesCollected: number;
-  averageAttendance: number;
-}
-
-interface MonthlyStats {
-  year: number;
-  month: number;
-  studentRegistrations: number;
-  teacherRegistrations: number;
-  feesCollected: number;
-  attendanceRate: number;
-}
-
-const StyledGrid = styled(Grid)(({ theme }) => ({
-  display: 'flex',
-}));
-
-interface CustomGridProps extends GridProps {
-  children: React.ReactNode;
-}
-
-const CustomGrid: React.FC<CustomGridProps> = (props) => (
-  <StyledGrid {...props} />
-);
 
 interface StatCardProps {
   title: string;
@@ -213,87 +100,98 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, p
 );
 
 const AdminDashboard: React.FC = () => {
-  const { user } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, getCurrentUserId } = useAuthStore();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    totalRevenue: 0,
+    averageAttendance: 85
+  });
+  const [studentPerformance, setStudentPerformance] = useState([]);
+  const [attendanceData, setAttendanceData] = useState([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [classStats, setClassStats] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [studentsPerformance, setStudentsPerformance] = useState<StudentPerformance[]>([]);
-  const [studentsAttendance, setStudentsAttendance] = useState<StudentAttendance[]>([]);
-  const [studentsFees, setStudentsFees] = useState<StudentFees[]>([]);
-  const [classStatistics, setClassStatistics] = useState<ClassStatistics | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([]);
-  const [timeRange, setTimeRange] = useState('6');
+  const [monthlyStats, setMonthlyStats] = useState([]);
 
-  const fetchStats = async () => {
+  const fetchDashboardData = async () => {
     try {
-      setIsLoading(true);
-      
-      // Fetch basic stats first
-      const [overallResponse, monthlyResponse, classesResponse] = await Promise.all([
-        api.get('/stats/overall'),
-        api.get('/stats/monthly?months=6'),
-        api.get('/classes')
-      ]);
-
-      setStats(overallResponse.data);
-      setMonthlyStats(monthlyResponse.data);
-      setClasses(classesResponse.data);
-
-      // Set default selected class if none selected
-      if (!selectedClass && classesResponse.data.length > 0) {
-        setSelectedClass(classesResponse.data[0]._id);
+      setLoading(true);
+      const userId = getCurrentUserId();
+      if (!userId) {
+        setError('User not authenticated');
+        return;
       }
 
-      setIsLoading(false);
-    } catch (err) {
-      setError('Error fetching dashboard data');
-      setIsLoading(false);
-    }
-  };
-
-  const fetchClassData = async () => {
-    if (!selectedClass) return;
-    
-    try {
-      setIsLoading(true);
-      const [studentsPerformanceResponse, studentsAttendanceResponse, classStatsResponse] = await Promise.all([
-        api.get('/admin/students/performance', { params: { classId: selectedClass } }),
-        api.get('/admin/students/attendance', { params: { classId: selectedClass } }),
-        api.get(`/classes/stats/${selectedClass}`)
+      // Fetch all dashboard data in parallel
+      const [
+        studentsRes,
+        teachersRes,
+        classesRes,
+        feesRes,
+        performanceRes,
+        attendanceRes
+      ] = await Promise.all([
+        api.get('/admin/students'),
+        api.get('/admin/teachers'),
+        api.get('/admin/classes'),
+        api.get('/admin/fees'),
+        api.get('/admin/students/performance'),
+        api.get('/admin/students/attendance')
       ]);
 
-      setStudentsPerformance(studentsPerformanceResponse.data);
-      setStudentsAttendance(studentsAttendanceResponse.data);
-      setClassStatistics(classStatsResponse.data);
-    } catch (err) {
-      setError('Error fetching class data');
+      setStats({
+        totalStudents: studentsRes.data.length,
+        totalTeachers: teachersRes.data.length,
+        totalClasses: classesRes.data.length,
+        totalRevenue: feesRes.data.reduce((sum: number, fee: any) => sum + fee.amount, 0),
+        averageAttendance: 85
+      });
+
+      setStudentPerformance(performanceRes.data);
+      setAttendanceData(attendanceRes.data);
+      setClasses(classesRes.data);
+      
+      if (classesRes.data.length > 0) {
+        setSelectedClass(classesRes.data[0]._id);
+        fetchClassStats(classesRes.data[0]._id);
+      }
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err.response?.data?.error || 'Error fetching dashboard data');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) {
-      fetchClassData();
+  const fetchClassStats = async (classId: string) => {
+    try {
+      const response = await api.get(`/classes/stats/${classId}`);
+      setClassStats(response.data);
+    } catch (err) {
+      console.error('Error fetching class stats:', err);
     }
-  }, [selectedClass]);
+  };
 
   const handleClassChange = (event: SelectChangeEvent<string>) => {
-    setSelectedClass(event.target.value);
+    const classId = event.target.value;
+    setSelectedClass(classId);
+    fetchClassStats(classId);
   };
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
-  if (isLoading) {
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
         <CircularProgress />
@@ -309,289 +207,178 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
-  if (!stats) {
-    return (
-      <Box p={3}>
-        <Alert severity="info">No data available</Alert>
-      </Box>
-    );
-  }
-
-  // Calculate changes from previous month
-  const getMonthlyChange = (current: number, previous: number) => {
-    if (!previous) return 0;
-    return ((current - previous) / previous) * 100;
-  };
-
-  const currentMonth = monthlyStats[monthlyStats.length - 1] || {
-    studentRegistrations: 0,
-    teacherRegistrations: 0,
-    feesCollected: 0,
-    attendanceRate: 0
-  };
-
-  const previousMonth = monthlyStats[monthlyStats.length - 2] || {
-    studentRegistrations: 0,
-    teacherRegistrations: 0,
-    feesCollected: 0,
-    attendanceRate: 0
-  };
-
   return (
-    <Box p={3}>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      
-      {/* Statistics Cards */}
-      <CustomGrid container spacing={3} mb={4}>
-        <CustomGrid item xs={12} sm={6} md={3}>
+    <Box>
+      <Typography variant="h4" gutterBottom>
+        Admin Dashboard
+      </Typography>
+      <Typography variant="body1" color="text.secondary" gutterBottom>
+        Welcome back, {user?.firstName}! Here's your school overview.
+      </Typography>
+
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Students"
             value={stats.totalStudents}
-            change={getMonthlyChange(
-              currentMonth.studentRegistrations,
-              previousMonth.studentRegistrations
-            )}
+            change={12.5}
             icon={Users}
           />
-        </CustomGrid>
-        <CustomGrid item xs={12} sm={6} md={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Teachers"
             value={stats.totalTeachers}
-            change={getMonthlyChange(
-              currentMonth.teacherRegistrations,
-              previousMonth.teacherRegistrations
-            )}
+            change={8.2}
             icon={GraduationCap}
           />
-        </CustomGrid>
-        <CustomGrid item xs={12} sm={6} md={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Fees Collected"
-            value={`$${stats.totalFeesCollected.toLocaleString()}`}
-            change={getMonthlyChange(
-              currentMonth.feesCollected,
-              previousMonth.feesCollected
-            )}
+            title="Total Classes"
+            value={stats.totalClasses}
+            change={0}
             icon={Receipt}
           />
-        </CustomGrid>
-        <CustomGrid item xs={12} sm={6} md={3}>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Average Attendance"
             value={`${stats.averageAttendance}%`}
-            change={getMonthlyChange(
-              currentMonth.attendanceRate,
-              previousMonth.attendanceRate
-            )}
+            change={3.4}
             icon={Clock}
           />
-        </CustomGrid>
-      </CustomGrid>
+        </Grid>
+      </Grid>
 
-      {/* Charts Section */}
-      <CustomGrid container spacing={3}>
-        <CustomGrid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">New Students Registration</Typography>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <Select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                >
-                  <MenuItem value="3">3 months</MenuItem>
-                  <MenuItem value="6">6 months</MenuItem>
-                  <MenuItem value="12">12 months</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="studentRegistrations" fill="#8884d8" name="New Students" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
-        </CustomGrid>
-
-        <CustomGrid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" mb={3}>Performance Trends</Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="attendance" stroke="#8884d8" name="Attendance" />
-                <Line type="monotone" dataKey="feesCollected" stroke="#ffc658" name="Fees Collection" />
-              </LineChart>
-            </ResponsiveContainer>
-          </Paper>
-        </CustomGrid>
-      </CustomGrid>
-
-      {/* Class Selection and Details */}
-      <Box mt={4}>
-        <Typography variant="h6" mb={2}>Class Details</Typography>
-        <CustomGrid container spacing={3}>
-          <CustomGrid item xs={12}>
-            <FormControl fullWidth>
-              <InputLabel>Select Class</InputLabel>
-              <Select
-                value={selectedClass}
-                onChange={handleClassChange}
-              >
-                {classes.map((cls) => (
-                  <MenuItem key={cls._id} value={cls._id}>
-                    {cls.name} - {cls.section} ({cls.academic_year})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </CustomGrid>
-
-          {classStatistics && (
-            <CustomGrid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Tabs value={activeTab} onChange={handleTabChange} centered>
-                  <Tab label="Performance" />
-                  <Tab label="Attendance" />
-                  <Tab label="Fees" />
-                </Tabs>
-
-                {activeTab === 0 && (
-                  <Box p={3}>
-                    <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                            <TableCell>Student</TableCell>
-                            <TableCell>Parent</TableCell>
-                            <TableCell>Total Assessments</TableCell>
-                            <TableCell>Average Score</TableCell>
-                            <TableCell>Subject Performance</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                          {studentsPerformance.map((item) => (
-                            <TableRow key={item.student._id}>
-                              <TableCell>
-                                {item.student.first_name} {item.student.last_name}
-                              </TableCell>
-                              <TableCell>
-                                {item.student.parent.first_name} {item.student.parent.last_name}
-                              </TableCell>
-                              <TableCell>{item.performance.totalAssessments}</TableCell>
-                              <TableCell>{item.performance.averageScore.toFixed(1)}%</TableCell>
-                    <TableCell>
-                                {Object.entries(item.performance.subjectAverages).map(([subject, data]) => (
-                                  <div key={subject}>
-                                    {subject}: {data.average.toFixed(1)}%
-                                  </div>
-                                ))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-                    </TableContainer>
-                  </Box>
-                )}
-
-                {activeTab === 1 && (
-                  <Box p={3}>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Student</TableCell>
-                            <TableCell>Parent</TableCell>
-                            <TableCell>Total Days</TableCell>
-                            <TableCell>Present</TableCell>
-                            <TableCell>Absent</TableCell>
-                            <TableCell>Late</TableCell>
-                            <TableCell>Present Rate</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {studentsAttendance.map((item) => (
-                            <TableRow key={item.student._id}>
-                              <TableCell>
-                                {item.student.first_name} {item.student.last_name}
-                              </TableCell>
-                              <TableCell>
-                                {item.student.parent.first_name} {item.student.parent.last_name}
-                              </TableCell>
-                              <TableCell>{item.attendance.totalDays}</TableCell>
-                              <TableCell>{item.attendance.present}</TableCell>
-                              <TableCell>{item.attendance.absent}</TableCell>
-                              <TableCell>{item.attendance.late}</TableCell>
-                              <TableCell>{item.attendance.presentPercentage.toFixed(1)}%</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Box>
-                )}
-
-                {activeTab === 2 && (
-                  <Box p={3}>
-                    <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                            <TableCell>Student</TableCell>
-                            <TableCell>Parent</TableCell>
-                            <TableCell>Total Fees</TableCell>
-                            <TableCell>Paid</TableCell>
-                            <TableCell>Outstanding</TableCell>
-                            <TableCell>Payment Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                          {studentsFees.map((item) => (
-                            <TableRow key={item.student._id}>
-                              <TableCell>
-                                {item.student.first_name} {item.student.last_name}
-                              </TableCell>
-                              <TableCell>
-                                {item.student.parent.first_name} {item.student.parent.last_name}
-                              </TableCell>
-                              <TableCell>${item.fees.totalFees.toLocaleString()}</TableCell>
-                              <TableCell>${item.fees.paidFees.toLocaleString()}</TableCell>
-                              <TableCell>${item.fees.outstandingFees.toLocaleString()}</TableCell>
-                              <TableCell>
-                                <CustomGrid container spacing={1}>
-                                  <CustomGrid item>
-                                    Paid: {item.fees.paymentStatus.paid}
-                                  </CustomGrid>
-                                  <CustomGrid item>
-                                    Partial: {item.fees.paymentStatus.partially_paid}
-                                  </CustomGrid>
-                                  <CustomGrid item>
-                                    Unpaid: {item.fees.paymentStatus.unpaid}
-                                  </CustomGrid>
-                                </CustomGrid>
-                              </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-                    </TableContainer>
-                  </Box>
-                )}
-              </Paper>
-            </CustomGrid>
-          )}
-        </CustomGrid>
+      {/* Class Selection */}
+      <Box sx={{ mb: 3 }}>
+        <FormControl sx={{ minWidth: 200 }}>
+          <Select
+            value={selectedClass}
+            onChange={handleClassChange}
+            displayEmpty
+          >
+            <MenuItem value="">
+              <em>Select a class</em>
+            </MenuItem>
+            {classes.map((cls) => (
+              <MenuItem key={cls._id} value={cls._id}>
+                {cls.name} - {cls.section}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </Box>
+
+      {/* Tabs for different views */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={activeTab} onChange={handleTabChange}>
+          <Tab label="Performance" />
+          <Tab label="Attendance" />
+          <Tab label="Analytics" />
+        </Tabs>
+      </Paper>
+
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Student Performance
+                </Typography>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Student Name</TableCell>
+                        <TableCell>Class</TableCell>
+                        <TableCell>Average Score</TableCell>
+                        <TableCell>Grade</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {studentPerformance.map((item: any) => (
+                        <TableRow key={item.student._id}>
+                          <TableCell>
+                            {item.student.first_name} {item.student.last_name}
+                          </TableCell>
+                          <TableCell>
+                            {item.student.class.name} - {item.student.class.section}
+                          </TableCell>
+                          <TableCell>{item.performance.averageScore}%</TableCell>
+                          <TableCell>{item.performance.grade || 'N/A'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {activeTab === 1 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Student Attendance
+                </Typography>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Student Name</TableCell>
+                        <TableCell>Class</TableCell>
+                        <TableCell>Present Days</TableCell>
+                        <TableCell>Absent Days</TableCell>
+                        <TableCell>Attendance %</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {attendanceData.map((item: any) => (
+                        <TableRow key={item.student._id}>
+                          <TableCell>
+                            {item.student.first_name} {item.student.last_name}
+                          </TableCell>
+                          <TableCell>
+                            {item.student.class.name} - {item.student.class.section}
+                          </TableCell>
+                          <TableCell>{item.attendance.present}</TableCell>
+                          <TableCell>{item.attendance.absent}</TableCell>
+                          <TableCell>{item.attendance.presentPercentage}%</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {activeTab === 2 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Analytics Dashboard
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Analytics and charts will be displayed here.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
     </Box>
   );
 };

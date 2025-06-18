@@ -45,7 +45,6 @@ import {
 } from 'recharts';
 import { CustomGrid } from '../../components/ui/CustomGrid';
 import { Users, GraduationCap, BookOpen, Clock } from 'lucide-react';
-
 interface Student {
   _id: string;
   first_name: string;
@@ -128,7 +127,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, p
 );
 
 const TeacherDashboard: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, getCurrentUserId } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignedClasses, setAssignedClasses] = useState<Class[]>([]);
@@ -177,6 +176,21 @@ const TeacherDashboard: React.FC = () => {
 
   const fetchTeacherStats = async () => {
     try {
+      const userId = getCurrentUserId();
+      if (!userId) {
+        setError('User not authenticated');
+        return;
+      }
+      
+      // First get user data to find the teacher profile
+      const userResponse = await api.get(`/users/${userId}`);
+      const teacherId = userResponse.data.profile?._id;
+      
+      if (!teacherId) {
+        setError('Teacher profile not found');
+        return;
+      }
+      
       const response = await api.get('/teachers/stats');
       setTeacherStats(response.data);
     } catch (err) {

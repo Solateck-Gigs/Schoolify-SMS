@@ -71,7 +71,7 @@ interface ExtracurricularActivity {
 }
 
 export default function StudentsPage() {
-  const { user } = useAuthStore();
+  const { user, getCurrentUserId } = useAuthStore();
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -91,8 +91,14 @@ export default function StudentsPage() {
   const fetchStudents = async () => {
     try {
       setIsLoading(true);
+      const userId = getCurrentUserId();
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
+      
       // Fetch students from backend
-      const { data } = await api.get('/students');
+      const { data } = await api.get('/admin/students');
       setStudents(data);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -268,15 +274,16 @@ export default function StudentsPage() {
             </div>
           ) : (
             <Table>
-              <TableHeader>
+              <TableHead>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHeader>Name</TableHeader>
+                  <TableHeader>Class</TableHeader>
+                  <TableHeader>Contact</TableHeader>
+                  <TableHeader>Status</TableHeader>
+                  <TableHeader>Actions</TableHeader>
+                  {isSuperAdmin && <TableHeader>Manage</TableHeader>}
                 </TableRow>
-              </TableHeader>
+              </TableHead>
               <TableBody>
                 {filteredStudents.map((student) => (
                   <TableRow key={student.id}>

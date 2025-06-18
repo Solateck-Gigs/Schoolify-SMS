@@ -11,6 +11,7 @@ import feeRoutes from './routes/fees';
 import announcementRoutes from './routes/announcements';
 import messageRoutes from './routes/messages';
 import adminsRoutes from './routes/admins';
+import adminRoutes from './routes/admin';
 import userRoutes from './routes/users';
 import statsRoutes from './routes/stats';
 import { initializeUserWatcher } from './services/userWatcher';
@@ -34,6 +35,7 @@ app.use('/api/fees', feeRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admins', adminsRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
 

@@ -215,22 +215,16 @@ router.get('/available', authenticateToken, requireRole(['admin', 'super_admin']
   }
 });
 
-// Get teacher statistics (for authenticated teacher)
-router.get('/stats', authenticateToken, requireRole(['teacher']), async (req: Request, res: Response) => {
+// Get teacher stats
+router.get('/stats', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthRequest).user;
-    const teacher = await Teacher.findOne({ user: user._id })
-      .populate('assignedClasses');
-
-    if (!teacher) {
-      return res.status(404).json({ error: 'Teacher not found' });
-    }
-
-    // Calculate stats (mock data for now - you can implement actual calculations)
+    const requestingUser = (req as AuthRequest).user;
+    
+    // Mock stats data - replace with actual database queries
     const stats = {
-      totalStudents: teacher.assignedClasses.reduce((total: number, cls: any) => total + (cls.capacity || 0), 0),
-      averagePerformance: 85.5,
-      totalClasses: teacher.assignedClasses.length,
+      totalStudents: 125,
+      averagePerformance: 78.5,
+      totalClasses: 6,
       averageAttendance: 92.3,
       studentChange: 15.2,
       performanceChange: 8.7,
@@ -238,53 +232,45 @@ router.get('/stats', authenticateToken, requireRole(['teacher']), async (req: Re
       attendanceChange: 3.4
     };
 
-    res.status(200).json(stats);
+    res.json(stats);
   } catch (error) {
     console.error('Error fetching teacher stats:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Get teacher monthly statistics (for authenticated teacher)
-router.get('/monthly-stats', authenticateToken, requireRole(['teacher']), async (req: Request, res: Response) => {
+// Get teacher monthly stats
+router.get('/monthly-stats', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthRequest).user;
-    const { months = 6 } = req.query;
+    const months = parseInt(req.query.months as string) || 6;
+    
+    // Mock monthly stats data - replace with actual database queries
+    const monthlyStats = Array.from({ length: months }, (_, i) => ({
+      month: new Date(2024, i, 1).toLocaleString('default', { month: 'short' }),
+      studentPerformance: Math.floor(Math.random() * 20) + 70,
+      attendance: Math.floor(Math.random() * 10) + 85,
+      assessments: Math.floor(Math.random() * 5) + 8
+    }));
 
-    const teacher = await Teacher.findOne({ user: user._id });
-    if (!teacher) {
-      return res.status(404).json({ error: 'Teacher not found' });
-    }
-
-    // Generate mock monthly data (you can implement actual calculations)
-    const monthlyStats = Array.from({ length: parseInt(months as string) }, (_, i) => ({
-      month: new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000).toLocaleString('default', { month: 'short' }),
-      performance: Math.floor(Math.random() * 20) + 80,
-      attendance: Math.floor(Math.random() * 10) + 90,
-      subject: `Subject ${i + 1}`,
-      averageScore: Math.floor(Math.random() * 20) + 75,
-      passRate: Math.floor(Math.random() * 15) + 85
-    })).reverse();
-
-    res.status(200).json(monthlyStats);
+    res.json(monthlyStats);
   } catch (error) {
-    console.error('Error fetching teacher monthly stats:', error);
+    console.error('Error fetching monthly stats:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Get teacher's assigned classes (for authenticated teacher)
-router.get('/classes', authenticateToken, requireRole(['teacher']), async (req: Request, res: Response) => {
+// Get teacher's assigned classes
+router.get('/classes', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
   try {
-    const user = (req as AuthRequest).user;
-    const teacher = await Teacher.findOne({ user: user._id })
-      .populate('assignedClasses', 'name section academicYear capacity');
-
+    const requestingUser = (req as AuthRequest).user;
+    
+    // Find teacher profile
+    const teacher = await Teacher.findOne({ user: requestingUser._id }).populate('assignedClasses');
     if (!teacher) {
-      return res.status(404).json({ error: 'Teacher not found' });
+      return res.status(404).json({ error: 'Teacher profile not found' });
     }
 
-    res.status(200).json(teacher.assignedClasses);
+    res.json(teacher.assignedClasses);
   } catch (error) {
     console.error('Error fetching teacher classes:', error);
     res.status(500).json({ error: 'Server error' });

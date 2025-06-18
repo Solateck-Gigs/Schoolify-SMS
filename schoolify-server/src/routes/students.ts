@@ -273,4 +273,64 @@ router.get('/profile/:id/stats', authenticateToken, async (req: Request, res: Re
   }
 });
 
+// Get student profile stats by student ID
+router.get('/profile/:id/stats', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
+  try {
+    const studentId = req.params.id;
+    const requestingUser = (req as AuthRequest).user;
+
+    // Check if user is requesting their own data
+    const student = await Student.findById(studentId).populate('user');
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const isOwnData = requestingUser._id.toString() === student.user._id.toString();
+    const isAuthorized = ['admin', 'super_admin', 'teacher'].includes(requestingUser.role) || isOwnData;
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Not authorized to view this student data' });
+    }
+
+    // Mock stats data - replace with actual database queries
+    const stats = {
+      academicPerformance: {
+        overallGrade: 'B+',
+        gpa: 3.2,
+        rank: 15,
+        totalStudentsInClass: 30,
+        subjectGrades: {
+          'Mathematics': 'A',
+          'English': 'B+',
+          'Science': 'B',
+          'History': 'A-'
+        }
+      },
+      attendance: {
+        totalDays: 180,
+        presentDays: 165,
+        absentDays: 15,
+        attendancePercentage: 91.7,
+        lateArrivals: 3
+      },
+      fees: {
+        totalFees: 5000,
+        paidAmount: 4500,
+        pendingAmount: 500,
+        paymentStatus: 'Partially Paid'
+      },
+      behavior: {
+        conduct: 'Good',
+        disciplinaryActions: 0,
+        achievements: ['Honor Roll', 'Science Fair Winner']
+      }
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching student stats:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router; 

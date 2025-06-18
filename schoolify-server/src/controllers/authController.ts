@@ -216,46 +216,6 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-export const getMe = async (req: Request, res: Response) => {
-  try {
-    if (!req.user?._id) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const user = await User.findById(req.user._id).select('-password');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Get role-specific profile data
-    let profileData = null;
-    switch (user.role) {
-      case 'teacher':
-        profileData = await Teacher.findOne({ user: user._id });
-        break;
-      case 'student':
-        profileData = await Student.findOne({ user: user._id });
-        break;
-      case 'parent':
-        profileData = await Parent.findOne({ user: user._id });
-        break;
-    }
-
-    res.json({
-      user,
-      profile: profileData
-    });
-  } catch (error) {
-    console.error('Error in getMe:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
 export const logout = async (_req: Request, res: Response) => {
-  try {
-    res.json({ message: 'Logged out successfully' });
-  } catch (error) {
-    console.error('Error in logout:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+  res.json({ message: 'Logged out successfully' });
 }; 

@@ -1,6 +1,7 @@
 // lib/store.ts
 import { create } from 'zustand';
 import api from '../services/api';
+import { getUserFromToken, isTokenExpired } from './jwt';
 
 // User type
 export type User = {
@@ -32,14 +33,23 @@ type AuthState = {
   completeProfile: (profileData: any) => Promise<void>;
   checkAuth: () => Promise<void>;
   logout: () => void;
+  getCurrentUserId: () => string | null;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
   isLoading: false,
   error: null,
   isProfileComplete: false,
+
+  getCurrentUserId: () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    
+    const userInfo = getUserFromToken(token);
+    return userInfo?.id || null;
+  },
 
   register: async (userData) => {
     set({ isLoading: true, error: null });
@@ -117,6 +127,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     const token = localStorage.getItem('token');
+    
     if (!token) {
       set({ 
         user: null,
@@ -127,13 +138,39 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
 
+    // Check if token is expired
+    if (isTokenExpired(token)) {
+      localStorage.removeItem('token');
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
+      return;
+    }
+
+    // Get user ID from token
+    const userInfo = getUserFromToken(token);
+    if (!userInfo) {
+      localStorage.removeItem('token');
+      set({ 
+        user: null,
+        profile: null,
+        isProfileComplete: false,
+        isLoading: false 
+      });
+      return;
+    }
+
     try {
-      const response = await api.get('/auth/me');
-      const { user, profile } = response.data;
+      // Use dynamic endpoint with user ID from token
+      const response = await api.get(`/users/${userInfo.id}`);
+      const { user, profile, isProfileComplete } = response.data;
       set({ 
         user,
         profile,
-        isProfileComplete: !!profile,
+        isProfileComplete,
         isLoading: false 
       });
     } catch (err) {

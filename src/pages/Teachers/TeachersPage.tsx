@@ -29,6 +29,7 @@ interface Teacher {
 }
 
 export default function TeachersPage() {
+  const { user, getCurrentUserId } = useAuthStore();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,7 +64,13 @@ export default function TeachersPage() {
   const fetchTeachers = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/teachers');
+      const userId = getCurrentUserId();
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      const { data } = await api.get('/admin/teachers');
       setTeachers(data);
     } catch (error) {
       console.error('Error fetching teachers:', error);
@@ -325,17 +332,17 @@ export default function TeachersPage() {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
+          <TableHead>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Contact Number</TableHead>
-              <TableHead>Qualification</TableHead>
-              <TableHead>Subjects</TableHead>
-              <TableHead>Classes Taught</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHeader>Name</TableHeader>
+              <TableHeader>Email</TableHeader>
+              <TableHeader>Contact Number</TableHeader>
+              <TableHeader>Qualification</TableHeader>
+              <TableHeader>Subjects</TableHeader>
+              <TableHeader>Classes Taught</TableHeader>
+              <TableHeader className="text-right">Actions</TableHeader>
             </TableRow>
-          </TableHeader>
+          </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
