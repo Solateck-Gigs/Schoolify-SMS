@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/Table';
 import { Search, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/Dialog';
-import { Label } from '@/components/ui/Label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../../components/ui/Dialog';
+import Label from '../../components/ui/Label';
+import { useAuthStore } from '../../lib/store';
 
 interface UserBasicInfo {
   _id: string;
-  user_id_number: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   email?: string;
   phone?: string;
 }
@@ -20,10 +20,12 @@ interface UserBasicInfo {
 interface Teacher {
   _id: string;
   user: UserBasicInfo;
-  qualification: string;
-  joining_date: string;
-  subjects: string[];
-  classes_taught: number[];
+  employeeId?: string;
+  dateOfHire?: string;
+  subjectsTaught: string[];
+  assignedClasses: any[];
+  qualifications: string[];
+  experienceYears?: number;
 }
 
 export default function TeachersPage() {
@@ -84,14 +86,16 @@ export default function TeachersPage() {
     setLoading(true);
     try {
       const newTeacher = {
-        first_name: newTeacherData.first_name,
-        last_name: newTeacherData.last_name,
+        firstName: newTeacherData.first_name,
+        lastName: newTeacherData.last_name,
         email: newTeacherData.email,
-        contact_number: newTeacherData.contact_number,
-        qualification: newTeacherData.qualification,
-        joining_date: newTeacherData.joining_date,
-        subjects: newTeacherData.subjects.split(',').map(s => s.trim()),
-        classes_taught: newTeacherData.classes_taught.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c)),
+        phone: newTeacherData.contact_number,
+        password: 'defaultPassword123', // You might want to generate this or ask for it
+        employeeId: `EMP${Date.now()}`, // Generate a unique employee ID
+        dateOfHire: newTeacherData.joining_date,
+        subjectsTaught: newTeacherData.subjects.split(',').map(s => s.trim()).filter(s => s),
+        qualifications: newTeacherData.qualification.split(',').map(q => q.trim()).filter(q => q),
+        experienceYears: 0
       };
       const response = await api.post('/teachers', newTeacher);
       setTeachers(prev => [...prev, response.data]);
@@ -109,75 +113,82 @@ export default function TeachersPage() {
       });
     } catch (error) {
       console.error('Error adding teacher:', error);
-        toast.error('Failed to add teacher');
+      toast.error('Failed to add teacher');
     }
     setLoading(false);
   };
 
-  const handleEditTeacher = async () => {
+  const handleUpdateTeacher = async () => {
     if (!selectedTeacher) return;
-    setLoading(true);
+
     try {
       const updatedTeacher = {
-        first_name: editTeacherData.first_name,
-        last_name: editTeacherData.last_name,
-        email: editTeacherData.email,
-        contact_number: editTeacherData.contact_number,
-        qualification: editTeacherData.qualification,
-        joining_date: editTeacherData.joining_date,
-        subjects: editTeacherData.subjects.split(',').map(s => s.trim()),
-        classes_taught: editTeacherData.classes_taught.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c)),
+        firstName: selectedTeacher.user.firstName,
+        lastName: selectedTeacher.user.lastName,
+        email: selectedTeacher.user.email,
+        phone: selectedTeacher.user.phone,
+        subjectsTaught: selectedTeacher.subjectsTaught,
+        qualifications: selectedTeacher.qualifications,
+        experienceYears: selectedTeacher.experienceYears
       };
-      const response = await api.put(`/teachers/${selectedTeacher._id}`, updatedTeacher);
-      setTeachers(prev => prev.map(t => t._id === selectedTeacher._id ? response.data : t));
-      toast.success('Teacher updated successfully');
-      setIsEditModalOpen(false);
+
+      const response = await api.put(`/teachers/profile/${selectedTeacher._id}`, updatedTeacher);
+      
+      // Update the teachers list with the updated teacher data
+      setTeachers(teachers.map(teacher => 
+        teacher._id === selectedTeacher._id ? response.data : teacher
+      ));
+      
       setSelectedTeacher(null);
+      setIsEditModalOpen(false);
+      toast.success('Teacher updated successfully!');
     } catch (error) {
       console.error('Error updating teacher:', error);
-        toast.error('Failed to update teacher');
+      toast.error('Failed to update teacher.');
     }
-    setLoading(false);
   };
 
   const handleDeleteTeacher = async (teacherId: string) => {
     if (window.confirm('Are you sure you want to delete this teacher?')) {
-      setLoading(true);
       try {
-        await api.delete(`/teachers/${teacherId}`);
+        await api.delete(`/teachers/profile/${teacherId}`);
+        setTeachers(teachers.filter(teacher => teacher._id !== teacherId));
         toast.success('Teacher deleted successfully!');
-        fetchTeachers();
       } catch (error) {
         console.error('Error deleting teacher:', error);
-        toast.error('Failed to delete teacher');
+        toast.error('Failed to delete teacher.');
       }
-      setLoading(false);
     }
   };
 
   const openEditModal = (teacher: Teacher) => {
     setSelectedTeacher(teacher);
     setEditTeacherData({
-      first_name: teacher.user.first_name,
-      last_name: teacher.user.last_name,
+      first_name: teacher.user.firstName,
+      last_name: teacher.user.lastName,
       email: teacher.user.email || '',
       contact_number: teacher.user.phone || '',
-      qualification: teacher.qualification,
-      joining_date: teacher.joining_date,
-      subjects: teacher.subjects.join(','),
-      classes_taught: teacher.classes_taught.join(','),
+      qualification: (teacher.qualifications || []).join(','),
+      joining_date: teacher.dateOfHire || '',
+      subjects: (teacher.subjectsTaught || []).join(','),
+      classes_taught: teacher.assignedClasses?.length.toString() || '0',
     });
     setIsEditModalOpen(true);
   };
 
-  const filteredTeachers = teachers.filter(teacher =>
-    teacher.user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (teacher.user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (teacher.user.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.qualification.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.subjects.some(subject => subject.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredTeachers = teachers.filter(teacher => {
+    if (!teacher.user) return false;
+    
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (teacher.user.firstName || '').toLowerCase().includes(searchLower) ||
+      (teacher.user.lastName || '').toLowerCase().includes(searchLower) ||
+      (teacher.user.email || '').toLowerCase().includes(searchLower) ||
+      (teacher.user.phone || '').toLowerCase().includes(searchLower) ||
+      (teacher.qualifications || []).some(q => q.toLowerCase().includes(searchLower)) ||
+      (teacher.subjectsTaught || []).some(subject => subject.toLowerCase().includes(searchLower))
+    );
+  });
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -337,12 +348,12 @@ export default function TeachersPage() {
             ) : (
               filteredTeachers.map(teacher => (
                 <TableRow key={teacher._id}>
-                  <TableCell>{teacher.user.first_name} {teacher.user.last_name}</TableCell>
+                  <TableCell>{teacher.user.firstName} {teacher.user.lastName}</TableCell>
                   <TableCell>{teacher.user.email}</TableCell>
                   <TableCell>{teacher.user.phone}</TableCell>
-                  <TableCell>{teacher.qualification}</TableCell>
-                  <TableCell>{teacher.subjects.join(', ')}</TableCell>
-                  <TableCell>{teacher.classes_taught.join(', ')}</TableCell>
+                  <TableCell>{(teacher.qualifications || []).join(', ')}</TableCell>
+                  <TableCell>{(teacher.subjectsTaught || []).join(', ')}</TableCell>
+                  <TableCell>{teacher.assignedClasses?.length || 0} classes</TableCell>
                   <TableCell className="text-right flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => openEditModal(teacher)}>
                       <Edit className="h-4 w-4" />
@@ -468,7 +479,7 @@ export default function TeachersPage() {
             </div>
           )}
           <DialogFooter>
-            <Button onClick={handleEditTeacher} disabled={loading}>Save Changes</Button>
+            <Button onClick={handleUpdateTeacher} disabled={loading}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

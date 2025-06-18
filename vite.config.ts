@@ -12,6 +12,19 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src'),
     },
+    extensions: ['.js', '.jsx', '.ts', '.tsx'],
+  },
+  server: {
+    watch: {
+      usePolling: true,
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+      },
+    },
   },
   test: {
     globals: true,

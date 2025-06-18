@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import Select from './ui/Select';
-import { Label } from './ui/Label';
+import Label from './ui/Label';
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
 
@@ -130,7 +130,7 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ student, onSuccess, o
         return;
       }
       // Update student via backend
-      const studentObj = await api.put(`/students/${student.id}`, {
+      const studentObj = await api.put(`/students/profile/${student.id}`, {
         first_name: formData.firstName,
         last_name: formData.lastName,
         date_of_birth: formData.dateOfBirth,

@@ -45,13 +45,13 @@ export default function AttendancePage() {
     try {
       setLoading(true);
       // Fetch students for the selected class and section
-      const studentsData = await apiFetch(`/students?classLevel=${selectedClass}&section=${selectedSection}`);
+      const studentsData = await apiFetch(`/students?classLevel=${selectedClass}&section=${selectedSection}`) as Student[];
       // Fetch attendance for the selected date
-      const attendanceData = await apiFetch(`/attendance?date=${selectedDate}&classLevel=${selectedClass}&section=${selectedSection}`);
+      const attendanceData = await apiFetch(`/attendance?date=${selectedDate}&classLevel=${selectedClass}&section=${selectedSection}`) as { studentId: string; present: boolean }[];
       // Merge student data with attendance data
-      const studentsWithAttendance = studentsData.map((student: any) => ({
+      const studentsWithAttendance = studentsData.map((student) => ({
         ...student,
-        present: attendanceData.find((a: any) => a.studentId === student.id)?.present ?? false
+        present: attendanceData.find((a) => a.studentId === student.id)?.present ?? false
       }));
       setStudents(studentsWithAttendance);
     } catch (error) {
@@ -70,7 +70,7 @@ export default function AttendancePage() {
       }
       await apiFetch('/attendance', {
         method: 'PUT',
-        body: JSON.stringify({ studentId, date: selectedDate, present, markedBy: user.id }),
+        body: JSON.stringify({ studentId, date: selectedDate, present, markedBy: user._id }),
       });
       setStudents(prev => prev.map(student => student.id === studentId ? { ...student, present } : student));
       toast.success('Attendance updated successfully');
@@ -90,7 +90,7 @@ export default function AttendancePage() {
         studentId: student.id,
         date: selectedDate,
         present: student.present,
-        markedBy: user.id
+        markedBy: user._id
       }));
       await apiFetch('/attendance/bulk', {
         method: 'POST',
@@ -199,9 +199,10 @@ export default function AttendancePage() {
                             Present
                           </Button>
                           <Button
-                            variant={!student.present ? "danger" : "outline"}
+                            variant={!student.present ? "primary" : "outline"}
                             size="sm"
                             onClick={() => handleAttendanceChange(student.id, false)}
+                            className={!student.present ? "bg-red-600 hover:bg-red-700" : ""}
                           >
                             Absent
                           </Button>

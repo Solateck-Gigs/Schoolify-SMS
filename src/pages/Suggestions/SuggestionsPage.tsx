@@ -3,7 +3,7 @@ import { useAuthStore } from '../../lib/store';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
-import { Label } from '../../components/ui/Label';
+import Label from '../../components/ui/Label';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 

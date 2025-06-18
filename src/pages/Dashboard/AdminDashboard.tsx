@@ -227,28 +227,55 @@ const AdminDashboard: React.FC = () => {
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([]);
   const [timeRange, setTimeRange] = useState('6');
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const fetchStats = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch basic stats first
+      const [overallResponse, monthlyResponse, classesResponse] = await Promise.all([
+        api.get('/stats/overall'),
+        api.get('/stats/monthly?months=6'),
+        api.get('/classes')
+      ]);
 
-        // Fetch overall stats
-        const overallResponse = await api.get('/stats/overall');
-        setStats(overallResponse.data);
+      setStats(overallResponse.data);
+      setMonthlyStats(monthlyResponse.data);
+      setClasses(classesResponse.data);
 
-        // Fetch monthly stats
-        const monthlyResponse = await api.get('/stats/monthly?months=6');
-        setMonthlyStats(monthlyResponse.data);
-
-        setIsLoading(false);
-      } catch (err: any) {
-        console.error('Error fetching dashboard stats:', err);
-        setError(err.response?.data?.error || 'Failed to load dashboard data');
-        setIsLoading(false);
+      // Set default selected class if none selected
+      if (!selectedClass && classesResponse.data.length > 0) {
+        setSelectedClass(classesResponse.data[0]._id);
       }
-    };
 
+      setIsLoading(false);
+    } catch (err) {
+      setError('Error fetching dashboard data');
+      setIsLoading(false);
+    }
+  };
+
+  const fetchClassData = async () => {
+    if (!selectedClass) return;
+    
+    try {
+      setIsLoading(true);
+      const [studentsPerformanceResponse, studentsAttendanceResponse, classStatsResponse] = await Promise.all([
+        api.get('/admin/students/performance', { params: { classId: selectedClass } }),
+        api.get('/admin/students/attendance', { params: { classId: selectedClass } }),
+        api.get(`/classes/stats/${selectedClass}`)
+      ]);
+
+      setStudentsPerformance(studentsPerformanceResponse.data);
+      setStudentsAttendance(studentsAttendanceResponse.data);
+      setClassStatistics(classStatsResponse.data);
+    } catch (err) {
+      setError('Error fetching class data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStats();
   }, []);
 
@@ -257,41 +284,6 @@ const AdminDashboard: React.FC = () => {
       fetchClassData();
     }
   }, [selectedClass]);
-
-  const fetchClasses = async () => {
-    try {
-      const response = await api.get('/classes');
-      setClasses(response.data);
-      if (response.data.length > 0) {
-        setSelectedClass(response.data[0]._id);
-      }
-    } catch (err) {
-      setError('Error fetching classes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchClassData = async () => {
-    setIsLoading(true);
-    try {
-      const [performanceRes, attendanceRes, feesRes, statsRes] = await Promise.all([
-        api.get('/students/performance', { params: { classId: selectedClass } }),
-        api.get('/students/attendance', { params: { classId: selectedClass } }),
-        api.get('/fees/status', { params: { classId: selectedClass } }),
-        api.get(`/classes/${selectedClass}/stats`)
-      ]);
-
-      setStudentsPerformance(performanceRes.data);
-      setStudentsAttendance(attendanceRes.data);
-      setStudentsFees(feesRes.data);
-      setClassStatistics(statsRes.data);
-    } catch (err) {
-      setError('Error fetching class data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleClassChange = (event: SelectChangeEvent<string>) => {
     setSelectedClass(event.target.value);

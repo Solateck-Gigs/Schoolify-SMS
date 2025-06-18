@@ -177,7 +177,7 @@ const TeacherDashboard: React.FC = () => {
 
   const fetchTeacherStats = async () => {
     try {
-      const response = await api.get('/teacher/stats');
+      const response = await api.get('/teachers/stats');
       setTeacherStats(response.data);
     } catch (err) {
       setError('Error fetching teacher statistics');
@@ -186,7 +186,7 @@ const TeacherDashboard: React.FC = () => {
 
   const fetchMonthlyStats = async () => {
     try {
-      const response = await api.get('/teacher/stats/monthly', {
+      const response = await api.get('/teachers/monthly-stats', {
         params: { months: timeRange }
       });
       setMonthlyStats(response.data);
@@ -197,7 +197,7 @@ const TeacherDashboard: React.FC = () => {
 
   const fetchAssignedClasses = async () => {
     try {
-      const response = await api.get('/teacher/classes');
+      const response = await api.get('/teachers/classes');
       setAssignedClasses(response.data);
       if (response.data.length > 0) {
         setSelectedClass(response.data[0]._id);

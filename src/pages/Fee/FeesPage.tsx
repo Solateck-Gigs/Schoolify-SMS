@@ -130,10 +130,12 @@ export default function FeesPage() {
         {isAdmin && (
           <Button
             variant="primary"
-            leftIcon={<PlusCircle size={16} />}
             onClick={() => setIsAddingFee(true)}
           >
-            Record Payment
+            <span className="flex items-center gap-2">
+              <PlusCircle size={16} />
+              Record Payment
+            </span>
           </Button>
         )}
       </div>
@@ -180,13 +182,18 @@ export default function FeesPage() {
             </div>
           ) : (
             <div style={{ height: 600, width: '100%' }}>
-              <DataGrid
+              <DataGrid<Fee>
                 rows={filteredFees}
                 columns={columns}
-                pageSize={10}
-                rowsPerPageOptions={[10]}
+                initialState={{
+                  pagination: {
+                    paginationModel: { pageSize: 10, page: 0 },
+                  },
+                }}
+                pageSizeOptions={[10]}
                 checkboxSelection={false}
-                disableSelectionOnClick
+                disableRowSelectionOnClick
+                getRowId={(row) => row.id}
               />
             </div>
           )}

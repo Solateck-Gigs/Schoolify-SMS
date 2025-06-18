@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '@/lib/store';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
+import { useAuthStore } from '../../lib/store';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Label from '../../components/ui/Label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
 import { toast } from 'react-hot-toast';
 import { User, Bell, Lock, UserCircle } from 'lucide-react';
 import { apiFetch } from '../../lib/api';

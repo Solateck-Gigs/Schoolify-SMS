@@ -23,8 +23,8 @@ function isPopulatedStudent(student: any): student is PopulatedStudent {
 
 const router = Router();
 
-// Get all fees (admin only)
-router.get('/', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+// Get all fees (admin and super_admin only)
+router.get('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const fees = await Fee.find()
       .populate('student', 'firstName lastName admissionNumber');

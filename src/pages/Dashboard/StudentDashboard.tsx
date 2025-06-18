@@ -40,7 +40,7 @@ const StudentDashboard: React.FC = () => {
         setError(null);
         
         // Fetch student statistics
-        const response = await api.get(`/students/${user?._id}/stats`);
+        const response = await api.get(`/students/profile/${user?._id}/stats`);
         setStats(response.data);
       } catch (err: any) {
         console.error('Error fetching student stats:', err);

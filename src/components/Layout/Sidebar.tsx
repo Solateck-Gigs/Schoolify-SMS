@@ -11,7 +11,8 @@ import {
   Settings,
   ClipboardCheck,
   HelpCircle,
-  Bell
+  Bell,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 
@@ -19,12 +20,19 @@ interface NavItemProps {
   to: string;
   icon: React.ReactNode;
   label: string;
+  onClick?: () => void;
 }
 
-function NavItem({ to, icon, label }: NavItemProps) {
+interface SidebarProps {
+  isMobileMenuOpen: boolean;
+  setIsMobileMenuOpen: (isOpen: boolean) => void;
+}
+
+function NavItem({ to, icon, label, onClick }: NavItemProps) {
   return (
     <NavLink
       to={to}
+      onClick={onClick}
       className={({ isActive }) =>
         `flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors ${
           isActive
@@ -39,14 +47,14 @@ function NavItem({ to, icon, label }: NavItemProps) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
   const { user } = useAuthStore();
   
   // Define navigation items based on user role
   const getNavItems = () => {
     const adminItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
-      { to: '/dashboard', icon: <GraduationCap size={20} />, label: 'Students' },
+      { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
       { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
@@ -62,7 +70,7 @@ export default function Sidebar() {
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
-      { to: '/dashboard', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
@@ -108,12 +116,22 @@ export default function Sidebar() {
         return [];
     }
   };
+
+  const sidebarClasses = `${
+    isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50' : 'hidden'
+  } md:flex md:flex-col md:w-64 bg-blue-900 text-white`;
   
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 bg-blue-900 text-white">
+    <aside className={sidebarClasses}>
       <div className="flex flex-col h-full">
-        <div className="h-16 flex items-center px-4 border-b border-blue-800">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-blue-800">
           <h1 className="text-xl font-bold">SchoolSync</h1>
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="md:hidden text-white focus:outline-none"
+          >
+            <X size={24} />
+          </button>
         </div>
         
         <div className="flex-1 flex flex-col overflow-y-auto pt-5 pb-4">
@@ -124,6 +142,7 @@ export default function Sidebar() {
                 to={item.to}
                 icon={item.icon}
                 label={item.label}
+                onClick={() => setIsMobileMenuOpen(false)}
               />
             ))}
           </nav>
@@ -132,15 +151,9 @@ export default function Sidebar() {
         <div className="px-4 py-4 border-t border-blue-800">
           <div className="flex items-center">
             <div className="h-10 w-10 rounded-full bg-blue-800 flex items-center justify-center">
-              {user?.profileImage ? (
-                <img
-                  className="h-10 w-10 rounded-full"
-                  src={user.profileImage}
-                  alt={`${user.firstName} ${user.lastName}`}
-                />
-              ) : (
+              {user?.firstName && user?.lastName && (
                 <span className="text-white font-medium">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                  {user.firstName.charAt(0)}{user.lastName.charAt(0)}
                 </span>
               )}
             </div>

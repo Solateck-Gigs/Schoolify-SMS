@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../lib/api';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/Table';
 import { Search, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/Dialog';
-import { Label } from '@/components/ui/Label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../../components/ui/Dialog';
+import Label from '../../components/ui/Label';
+import { useAuthStore } from '../../lib/store';
 
 interface Class {
   id: number;

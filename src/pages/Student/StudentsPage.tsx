@@ -156,7 +156,7 @@ export default function StudentsPage() {
     if (window.confirm('Are you sure you want to delete this student?')) {
       try {
         // Use backend API to delete student and related records
-        await api.delete(`/students/${studentId}`);
+        await api.delete(`/students/profile/${studentId}`);
         toast.success('Student deleted successfully!');
         fetchStudents(); // Refresh the list
       } catch (error) {
@@ -190,11 +190,14 @@ export default function StudentsPage() {
           </Button>
           {isSuperAdmin && (
             <Button
-              variant="danger"
-              leftIcon={<Trash2 size={16} />}
+              variant="primary"
+              className="bg-red-600 hover:bg-red-700"
               onClick={() => handleDeleteStudent(selectedStudent.id)}
             >
-              Delete Student
+              <span className="flex items-center gap-2">
+                <Trash2 size={16} />
+                Delete Student
+              </span>
             </Button>
           )}
         </div>
@@ -222,10 +225,12 @@ export default function StudentsPage() {
         {isAdmin && (
           <Button
             variant="primary"
-            leftIcon={<PlusCircle size={16} />}
             onClick={() => setShowAddStudentForm(true)}
           >
-            Add New Student
+            <span className="flex items-center gap-2">
+              <PlusCircle size={16} />
+              Add New Student
+            </span>
           </Button>
         )}
       </div>
@@ -333,20 +338,25 @@ export default function StudentsPage() {
                            <Button
                               variant="outline"
                               size="sm"
-                              leftIcon={<Edit size={16} />}
                               onClick={() => handleEditStudent(student)}
                               title="Edit Student"
                            >
-                             Edit
+                              <span className="flex items-center gap-2">
+                                <Edit size={16} />
+                                Edit
+                              </span>
                            </Button>
                            <Button
-                              variant="danger"
+                              variant="primary"
+                              className="bg-red-600 hover:bg-red-700"
                               size="sm"
-                              leftIcon={<Trash2 size={16} />}
                               onClick={() => handleDeleteStudent(student.id)}
                               title="Delete Student"
                            >
-                             Delete
+                              <span className="flex items-center gap-2">
+                                <Trash2 size={16} />
+                                Delete
+                              </span>
                            </Button>
                          </div>
                       </TableCell>

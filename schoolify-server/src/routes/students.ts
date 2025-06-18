@@ -1,34 +1,35 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response, Router } from 'express';
 import { Student, IStudent } from '../models/Student';
-import { User } from '../models/User';
+import { User, IUser } from '../models/User';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
 import { Types } from 'mongoose';
 
 const router = Router();
 
-// Get all students (admin only)
-router.get('/', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+// Get all students (admin and super_admin only)
+router.get('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const students = await Student.find()
       .populate('user', 'firstName lastName email')
       .populate('class', 'name section academicYear');
-    res.json(students);
+    res.status(200).json(students);
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Get student by ID
-router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+// Get student profile by ID
+router.get('/profile/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const user = (req as AuthRequest).user;
     if (!user || !user._id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const student = await Student.findById(req.params.id)
+    const studentId = req.params.id;
+    const student = await Student.findById(studentId)
       .populate('user', 'firstName lastName email')
       .populate('parent', 'firstName lastName email')
       .populate('class', 'name section academicYear');
@@ -42,15 +43,15 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized to view this student' });
     }
 
-    res.json(student);
+    res.status(200).json(student);
   } catch (error) {
-    console.error('Error fetching student:', error);
+    console.error('Error fetching student profile:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Create new student (admin only)
-router.post('/', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+// Create new student (admin and super_admin only)
+router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const {
       firstName,
@@ -116,57 +117,62 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req: Request,
   }
 });
 
-// Update student (admin only)
-router.put('/:id', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+// Update student profile by ID (admin and super_admin only)
+router.put('/profile/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
-    const {
-      dateOfBirth,
-      gender,
-      classId,
-      parentId,
-      medicalConditions,
-      bloodType,
-      allergies,
-      specialNeeds,
-      notes
-    } = req.body;
+    const studentId = req.params.id;
+    const updates = req.body;
 
-    const student = await Student.findById(req.params.id);
+    // Find the student
+    const student = await Student.findById(studentId);
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
     // Update student fields
-    if (dateOfBirth) student.dateOfBirth = dateOfBirth;
-    if (gender) student.gender = gender;
-    if (classId) student.class = classId;
-    if (parentId) student.parent = parentId;
-    if (medicalConditions) student.medicalConditions = medicalConditions;
-    if (bloodType) student.bloodType = bloodType;
-    if (allergies) student.allergies = allergies;
-    if (specialNeeds) student.specialNeeds = specialNeeds;
-    if (notes) student.notes = notes;
+    if (updates.dateOfBirth) student.dateOfBirth = updates.dateOfBirth;
+    if (updates.gender) student.gender = updates.gender;
+    if (updates.classId) student.class = updates.classId;
+    if (updates.parentId) student.parent = updates.parentId;
+    if (updates.medicalConditions) student.medicalConditions = updates.medicalConditions;
+    if (updates.bloodType) student.bloodType = updates.bloodType;
+    if (updates.allergies) student.allergies = updates.allergies;
+    if (updates.specialNeeds) student.specialNeeds = updates.specialNeeds;
+    if (updates.notes) student.notes = updates.notes;
 
-    await student.save();
+    // Save student updates
+    const updatedStudent = await student.save();
 
-    // Populate references before sending response
-    await student.populate([
-      { path: 'user', select: 'firstName lastName email' },
-      { path: 'parent', select: 'firstName lastName email' },
-      { path: 'class', select: 'name section academicYear' }
-    ]);
+    // Update associated user fields if provided
+    if (updates.firstName || updates.lastName || updates.email) {
+      const user = await User.findById(student.user);
+      if (user) {
+        if (updates.firstName) user.firstName = updates.firstName;
+        if (updates.lastName) user.lastName = updates.lastName;
+        if (updates.email) user.email = updates.email;
+        await user.save();
+      }
+    }
 
-    res.json(student);
+    // Populate the response with updated data
+    const response = await Student.findById(updatedStudent._id)
+      .populate('user', 'firstName lastName email')
+      .populate('parent', 'firstName lastName email')
+      .populate('class', 'name section academicYear');
+
+    res.status(200).json(response);
   } catch (error) {
-    console.error('Error updating student:', error);
+    console.error('Error updating student profile:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Delete student (admin only)
-router.delete('/:id', authenticateToken, requireRole(['admin']), async (req: Request, res: Response) => {
+// Delete student by ID (admin and super_admin only)
+router.delete('/profile/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
-    const student = await Student.findById(req.params.id);
+    const studentId = req.params.id;
+    const student = await Student.findById(studentId);
+    
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
@@ -177,9 +183,92 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req: Req
     // Delete student record
     await student.deleteOne();
 
-    res.json({ success: true });
+    res.status(200).json({ success: true, message: 'Student deleted successfully' });
   } catch (error) {
     console.error('Error deleting student:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get student statistics by ID (student, parent, teacher, admin, super_admin)
+router.get('/profile/:id/stats', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    const studentId = req.params.id;
+
+    const student = await Student.findById(studentId)
+      .populate('user', 'firstName lastName')
+      .populate('parent', 'user')
+      .populate('class', 'teacher');
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Check permissions
+    const isAdmin = ['admin', 'super_admin'].includes(user.role);
+    const isStudent = user.role === 'student' && student.user._id.toString() === user._id.toString();
+    
+    // Type-safe parent check
+    let isParent = false;
+    if (user.role === 'parent' && student.parent) {
+      const parentData = student.parent as any;
+      if (parentData.user) {
+        isParent = parentData.user.toString() === user._id.toString();
+      }
+    }
+    
+    // Type-safe teacher check
+    let isTeacher = false;
+    if (user.role === 'teacher' && student.class) {
+      const classData = student.class as any;
+      if (classData.teacher) {
+        isTeacher = classData.teacher.toString() === user._id.toString();
+      }
+    }
+
+    if (!isAdmin && !isStudent && !isParent && !isTeacher) {
+      return res.status(403).json({ error: 'Not authorized to view student statistics' });
+    }
+
+    // Generate mock statistics (you can implement actual calculations)
+    const stats = {
+      academicPerformance: {
+        overallGrade: 'B+',
+        gpa: 3.5,
+        rank: 15,
+        totalStudentsInClass: 45,
+        subjectGrades: {
+          Mathematics: 'A',
+          English: 'B+',
+          Science: 'A-',
+          History: 'B',
+          Geography: 'B+'
+        }
+      },
+      attendance: {
+        totalDays: 180,
+        presentDays: 165,
+        absentDays: 15,
+        attendancePercentage: 91.7,
+        lateArrivals: 8
+      },
+      fees: {
+        totalFees: 5000,
+        paidAmount: 4500,
+        pendingAmount: 500,
+        paymentStatus: 'Partially Paid'
+      },
+      behavior: {
+        conduct: 'Good',
+        disciplinaryActions: 0,
+        achievements: ['Science Fair Winner', 'Perfect Attendance Month']
+      }
+    };
+
+    res.status(200).json(stats);
+  } catch (error) {
+    console.error('Error fetching student statistics:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

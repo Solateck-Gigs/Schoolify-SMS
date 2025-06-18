@@ -18,6 +18,9 @@ import ProfileSettings from './pages/Settings/ProfileSettings';
 import TeachersPage from './pages/Teachers/TeachersPage';
 import ClassesPage from './pages/Classes/ClassesPage';
 import { UNSAFE_DataRouterContext, UNSAFE_DataRouterStateContext } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ProfileCompletionPage from './pages/ProfileCompletionPage';
 
 // Configure React Router future flags
 const router = {
@@ -72,6 +75,38 @@ function RoleRoute({ children, allowedRoles }: { children: JSX.Element, allowedR
   return children;
 }
 
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function ProfileRoute({ children }: { children: React.ReactNode }) {
+  const { user, isProfileComplete, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  if (isProfileComplete) {
+    return <Navigate to="/dashboard" />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   const { checkAuth, isLoading } = useAuthStore();
   
@@ -94,20 +129,25 @@ function App() {
     <Router future={router.future}>
       <Toaster position="top-right" />
       <Routes>
-        <Route path="/login" element={<AuthPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/complete-profile"
+          element={
+            <PrivateRoute>
+              <ProfileCompletionPage />
+            </PrivateRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/dashboard" />} />
         
         <Route element={<Layout />}>
           <Route
-            path="/"
-            element={<Navigate to="/dashboard" replace />}
-          />
-          
-          <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <PrivateRoute>
                 <DashboardPage />
-              </ProtectedRoute>
+              </PrivateRoute>
             }
           />
           
