@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import api from '../../services/api';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
@@ -8,12 +8,18 @@ import { toast } from 'react-hot-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/Dialog';
 import { Label } from '@/components/ui/Label';
 
-interface Teacher {
-  id: string;
+interface UserBasicInfo {
+  _id: string;
+  user_id_number: string;
   first_name: string;
   last_name: string;
-  email: string;
-  contact_number: string;
+  email?: string;
+  phone?: string;
+}
+
+interface Teacher {
+  _id: string;
+  user: UserBasicInfo;
   qualification: string;
   joining_date: string;
   subjects: string[];
@@ -54,15 +60,12 @@ export default function TeachersPage() {
 
   const fetchTeachers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teachers')
-      .select('*');
-
-    if (error) {
+    try {
+      const { data } = await api.get('/teachers');
+      setTeachers(data);
+    } catch (error) {
       console.error('Error fetching teachers:', error);
       toast.error('Failed to fetch teachers');
-    } else {
-      setTeachers(data || []);
     }
     setLoading(false);
   };
@@ -79,9 +82,8 @@ export default function TeachersPage() {
 
   const handleAddTeacher = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teachers')
-      .insert({
+    try {
+      const newTeacher = {
         first_name: newTeacherData.first_name,
         last_name: newTeacherData.last_name,
         email: newTeacherData.email,
@@ -90,14 +92,9 @@ export default function TeachersPage() {
         joining_date: newTeacherData.joining_date,
         subjects: newTeacherData.subjects.split(',').map(s => s.trim()),
         classes_taught: newTeacherData.classes_taught.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c)),
-      })
-      .select('*');
-
-    if (error) {
-      console.error('Error adding teacher:', error);
-      toast.error('Failed to add teacher');
-    } else if (data && data.length > 0) {
-      setTeachers(prev => [...prev, data[0]]);
+      };
+      const response = await api.post('/teachers', newTeacher);
+      setTeachers(prev => [...prev, response.data]);
       toast.success('Teacher added successfully');
       setIsAddModalOpen(false);
       setNewTeacherData({
@@ -110,7 +107,8 @@ export default function TeachersPage() {
         subjects: '',
         classes_taught: '',
       });
-    } else {
+    } catch (error) {
+      console.error('Error adding teacher:', error);
         toast.error('Failed to add teacher');
     }
     setLoading(false);
@@ -119,9 +117,8 @@ export default function TeachersPage() {
   const handleEditTeacher = async () => {
     if (!selectedTeacher) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teachers')
-      .update({
+    try {
+      const updatedTeacher = {
         first_name: editTeacherData.first_name,
         last_name: editTeacherData.last_name,
         email: editTeacherData.email,
@@ -130,19 +127,14 @@ export default function TeachersPage() {
         joining_date: editTeacherData.joining_date,
         subjects: editTeacherData.subjects.split(',').map(s => s.trim()),
         classes_taught: editTeacherData.classes_taught.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c)),
-      })
-      .eq('id', selectedTeacher.id)
-      .select('*');
-
-    if (error) {
-      console.error('Error updating teacher:', error);
-      toast.error('Failed to update teacher');
-    } else if (data && data.length > 0) {
-      setTeachers(prev => prev.map(teacher => teacher.id === data[0].id ? data[0] : teacher));
+      };
+      const response = await api.put(`/teachers/${selectedTeacher._id}`, updatedTeacher);
+      setTeachers(prev => prev.map(t => t._id === selectedTeacher._id ? response.data : t));
       toast.success('Teacher updated successfully');
       setIsEditModalOpen(false);
       setSelectedTeacher(null);
-    } else {
+    } catch (error) {
+      console.error('Error updating teacher:', error);
         toast.error('Failed to update teacher');
     }
     setLoading(false);
@@ -151,17 +143,13 @@ export default function TeachersPage() {
   const handleDeleteTeacher = async (teacherId: string) => {
     if (window.confirm('Are you sure you want to delete this teacher?')) {
       setLoading(true);
-      const { error } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('id', teacherId);
-
-      if (error) {
+      try {
+        await api.delete(`/teachers/${teacherId}`);
+        toast.success('Teacher deleted successfully!');
+        fetchTeachers();
+      } catch (error) {
         console.error('Error deleting teacher:', error);
         toast.error('Failed to delete teacher');
-      } else {
-        setTeachers(prev => prev.filter(teacher => teacher.id !== teacherId));
-        toast.success('Teacher deleted successfully');
       }
       setLoading(false);
     }
@@ -170,10 +158,10 @@ export default function TeachersPage() {
   const openEditModal = (teacher: Teacher) => {
     setSelectedTeacher(teacher);
     setEditTeacherData({
-      first_name: teacher.first_name,
-      last_name: teacher.last_name,
-      email: teacher.email,
-      contact_number: teacher.contact_number,
+      first_name: teacher.user.first_name,
+      last_name: teacher.user.last_name,
+      email: teacher.user.email || '',
+      contact_number: teacher.user.phone || '',
       qualification: teacher.qualification,
       joining_date: teacher.joining_date,
       subjects: teacher.subjects.join(','),
@@ -183,10 +171,10 @@ export default function TeachersPage() {
   };
 
   const filteredTeachers = teachers.filter(teacher =>
-    teacher.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.contact_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    teacher.user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    teacher.user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.user.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     teacher.qualification.toLowerCase().includes(searchTerm.toLowerCase()) ||
     teacher.subjects.some(subject => subject.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -348,10 +336,10 @@ export default function TeachersPage() {
               </TableRow>
             ) : (
               filteredTeachers.map(teacher => (
-                <TableRow key={teacher.id}>
-                  <TableCell>{teacher.first_name} {teacher.last_name}</TableCell>
-                  <TableCell>{teacher.email}</TableCell>
-                  <TableCell>{teacher.contact_number}</TableCell>
+                <TableRow key={teacher._id}>
+                  <TableCell>{teacher.user.first_name} {teacher.user.last_name}</TableCell>
+                  <TableCell>{teacher.user.email}</TableCell>
+                  <TableCell>{teacher.user.phone}</TableCell>
                   <TableCell>{teacher.qualification}</TableCell>
                   <TableCell>{teacher.subjects.join(', ')}</TableCell>
                   <TableCell>{teacher.classes_taught.join(', ')}</TableCell>
@@ -359,7 +347,7 @@ export default function TeachersPage() {
                     <Button variant="outline" size="sm" onClick={() => openEditModal(teacher)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDeleteTeacher(teacher.id)}>
+                    <Button variant="danger" size="sm" onClick={() => handleDeleteTeacher(teacher._id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

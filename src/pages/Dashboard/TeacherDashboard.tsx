@@ -1,118 +1,632 @@
-import React from 'react';
-import { GraduationCap, BookOpen, Calendar, Clock } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../../components/ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/Table';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  CircularProgress,
+  Alert,
+  Tabs,
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  SelectChangeEvent
+} from '@mui/material';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../services/api';
+import { useAuthStore } from '../../lib/store';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  ResponsiveContainer
+} from 'recharts';
+import { CustomGrid } from '../../components/ui/CustomGrid';
+import { Users, GraduationCap, BookOpen, Clock } from 'lucide-react';
 
-export default function TeacherDashboard() {
-  // This would be fetched from Supabase in a real application
-  const stats = [
-    { title: 'My Classes', value: 4, icon: <BookOpen size={24} />, color: 'bg-blue-100 text-blue-800' },
-    { title: 'Total Students', value: 120, icon: <GraduationCap size={24} />, color: 'bg-teal-100 text-teal-800' },
-    { title: 'Classes Today', value: 3, icon: <Calendar size={24} />, color: 'bg-purple-100 text-purple-800' },
-    { title: 'Next Class', value: '10:30 AM', icon: <Clock size={24} />, color: 'bg-amber-100 text-amber-800' },
-  ];
+interface Student {
+  _id: string;
+  first_name: string;
+  last_name: string;
+  class: {
+    name: string;
+    section: string;
+  };
+}
 
-  const upcomingClasses = [
-    { id: 1, class: 'Class 5A', subject: 'Mathematics', time: '10:30 - 11:30', room: 'Room 102' },
-    { id: 2, class: 'Class 6B', subject: 'Science', time: '12:00 - 13:00', room: 'Room 204' },
-    { id: 3, class: 'Class 5A', subject: 'Mathematics', time: '14:15 - 15:15', room: 'Room 102' },
-  ];
+interface Mark {
+  _id: string;
+  student: Student;
+  subject: string;
+  score: number;
+  total_score: number;
+  grade: string;
+  assessment_type: string;
+  date: string;
+}
 
-  const pendingTasks = [
-    { id: 1, task: 'Grade Class 6B Math Quiz', dueDate: '2023-05-20', priority: 'high' },
-    { id: 2, task: 'Prepare Science Lesson Plan', dueDate: '2023-05-22', priority: 'medium' },
-    { id: 3, task: 'Submit Monthly Progress Report', dueDate: '2023-05-30', priority: 'medium' },
-    { id: 4, task: 'Parent-Teacher Meeting Preparation', dueDate: '2023-06-02', priority: 'low' },
-  ];
+interface AttendanceRecord {
+  _id: string;
+  student: Student;
+  status: 'present' | 'absent' | 'late';
+  date: string;
+  reason?: string;
+}
+
+interface Class {
+  _id: string;
+  name: string;
+  section: string;
+  academic_year: string;
+}
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  change: number;
+  icon: React.ElementType;
+  period?: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, period = "Last 30 days" }) => (
+  <Card sx={{ height: '100%' }}>
+    <CardContent>
+      <Box display="flex" alignItems="center" mb={2}>
+        <Box
+          sx={{
+            backgroundColor: 'primary.light',
+            borderRadius: '50%',
+            p: 1,
+            mr: 2,
+          }}
+        >
+          <Icon size={24} color="primary" />
+        </Box>
+        <Typography variant="h6" component="div">
+          {title}
+        </Typography>
+      </Box>
+      <Typography variant="h3" component="div" gutterBottom>
+        {value}
+      </Typography>
+      <Box display="flex" alignItems="center">
+        <Typography
+          variant="body2"
+          color={change >= 0 ? 'success.main' : 'error.main'}
+          sx={{ display: 'flex', alignItems: 'center' }}
+        >
+          {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+          {period}
+        </Typography>
+      </Box>
+    </CardContent>
+  </Card>
+);
+
+const TeacherDashboard: React.FC = () => {
+  const { user } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [assignedClasses, setAssignedClasses] = useState<Class[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [activeTab, setActiveTab] = useState(0);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [openMarkDialog, setOpenMarkDialog] = useState(false);
+  const [openAttendanceDialog, setOpenAttendanceDialog] = useState(false);
+  const [markForm, setMarkForm] = useState({
+    studentId: '',
+    subject: '',
+    score: 0,
+    totalScore: 100,
+    assessmentType: 'exam',
+    remarks: ''
+  });
+  const [attendanceForm, setAttendanceForm] = useState<{
+    [key: string]: { status: 'present' | 'absent' | 'late'; reason?: string };
+  }>({});
+  const [timeRange, setTimeRange] = useState('6');
+  const [teacherStats, setTeacherStats] = useState({
+    totalStudents: 0,
+    averagePerformance: 0,
+    totalClasses: 0,
+    averageAttendance: 0,
+    studentChange: 15.2,
+    performanceChange: 8.7,
+    classesChange: 0,
+    attendanceChange: 3.4
+  });
+  const [monthlyStats, setMonthlyStats] = useState([]);
+
+  useEffect(() => {
+    fetchAssignedClasses();
+    fetchTeacherStats();
+    fetchMonthlyStats();
+  }, []);
+
+  useEffect(() => {
+    if (selectedClass) {
+      fetchClassData();
+    }
+  }, [selectedClass]);
+
+  const fetchTeacherStats = async () => {
+    try {
+      const response = await api.get('/teacher/stats');
+      setTeacherStats(response.data);
+    } catch (err) {
+      setError('Error fetching teacher statistics');
+    }
+  };
+
+  const fetchMonthlyStats = async () => {
+    try {
+      const response = await api.get('/teacher/stats/monthly', {
+        params: { months: timeRange }
+      });
+      setMonthlyStats(response.data);
+    } catch (err) {
+      setError('Error fetching monthly statistics');
+    }
+  };
+
+  const fetchAssignedClasses = async () => {
+    try {
+      const response = await api.get('/teacher/classes');
+      setAssignedClasses(response.data);
+      if (response.data.length > 0) {
+        setSelectedClass(response.data[0]._id);
+      }
+    } catch (err) {
+      setError('Error fetching assigned classes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchClassData = async () => {
+    setLoading(true);
+    try {
+      const [marksRes, attendanceRes] = await Promise.all([
+        api.get(`/marks/class/${selectedClass}`),
+        api.get(`/attendance/class/${selectedClass}`)
+      ]);
+      setMarks(marksRes.data);
+      setAttendance(attendanceRes.data);
+    } catch (err) {
+      setError('Error fetching class data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddMark = async () => {
+    try {
+      await api.post('/marks', {
+        ...markForm,
+        classId: selectedClass
+      });
+      setOpenMarkDialog(false);
+      fetchClassData();
+    } catch (err) {
+      setError('Error adding mark');
+    }
+  };
+
+  const handleMarkAttendance = async () => {
+    try {
+      const attendanceRecords = Object.entries(attendanceForm).map(([studentId, data]) => ({
+        studentId,
+        ...data
+      }));
+
+      await api.post(`/attendance/class/${selectedClass}`, {
+        attendanceRecords
+      });
+      setOpenAttendanceDialog(false);
+      fetchClassData();
+    } catch (err) {
+      setError('Error marking attendance');
+    }
+  };
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  const handleClassChange = (event: SelectChangeEvent<string>) => {
+    setSelectedClass(event.target.value);
+  };
+
+  const handleMarkFormChange = (field: keyof typeof markForm) => (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>
+  ) => {
+    setMarkForm({
+      ...markForm,
+      [field]: event.target.value
+    });
+  };
+
+  const handleAttendanceFormChange = (studentId: string, field: 'status' | 'reason') => (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>
+  ) => {
+    setAttendanceForm({
+      ...attendanceForm,
+      [studentId]: {
+        ...attendanceForm[studentId],
+        [field]: event.target.value
+      }
+    });
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Teacher Dashboard</h1>
-        <p className="text-gray-600">Welcome back! Here's your teaching schedule and tasks.</p>
-      </div>
+    <Box p={3}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardContent className="flex items-center p-6">
-              <div className={`p-3 rounded-full mr-4 ${stat.color}`}>
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Statistics Cards */}
+      <CustomGrid container spacing={3} mb={4}>
+        <CustomGrid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Students"
+            value={teacherStats.totalStudents}
+            change={teacherStats.studentChange}
+            icon={Users}
+          />
+        </CustomGrid>
+        <CustomGrid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Average Performance"
+            value={`${teacherStats.averagePerformance}%`}
+            change={teacherStats.performanceChange}
+            icon={GraduationCap}
+          />
+        </CustomGrid>
+        <CustomGrid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Total Classes"
+            value={teacherStats.totalClasses}
+            change={teacherStats.classesChange}
+            icon={BookOpen}
+          />
+        </CustomGrid>
+        <CustomGrid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Average Attendance"
+            value={`${teacherStats.averageAttendance}%`}
+            change={teacherStats.attendanceChange}
+            icon={Clock}
+          />
+        </CustomGrid>
+      </CustomGrid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-medium text-gray-900">Today's Classes</h2>
-          </CardHeader>
-          <CardContent>
+      {/* Charts Section */}
+      <CustomGrid container spacing={3}>
+        <CustomGrid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h6">Class Performance Trends</Typography>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <Select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value)}
+                >
+                  <MenuItem value="3">3 months</MenuItem>
+                  <MenuItem value="6">6 months</MenuItem>
+                  <MenuItem value="12">12 months</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={monthlyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="performance" stroke="#8884d8" name="Average Performance" />
+                <Line type="monotone" dataKey="attendance" stroke="#82ca9d" name="Attendance Rate" />
+              </LineChart>
+            </ResponsiveContainer>
+          </Paper>
+        </CustomGrid>
+
+        <CustomGrid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" mb={3}>Subject-wise Performance</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="subject" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="averageScore" fill="#8884d8" name="Average Score" />
+                <Bar dataKey="passRate" fill="#82ca9d" name="Pass Rate" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </CustomGrid>
+      </CustomGrid>
+
+      {/* Class Selection and Details */}
+      <Box mt={4}>
+        <Typography variant="h6" mb={2}>Class Details</Typography>
+        <CustomGrid container spacing={3}>
+          <CustomGrid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Select Class</InputLabel>
+              <Select
+                value={selectedClass}
+                onChange={handleClassChange}
+              >
+                {assignedClasses.map((cls) => (
+                  <MenuItem key={cls._id} value={cls._id}>
+                    {cls.name} - {cls.section} ({cls.academic_year})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </CustomGrid>
+
+          {selectedClass && (
+            <CustomGrid item xs={12}>
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h6" gutterBottom>Class Performance Summary</Typography>
+                {/* Add detailed class performance metrics here */}
+              </Paper>
+            </CustomGrid>
+          )}
+        </CustomGrid>
+      </Box>
+
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Paper>
+            <Tabs value={activeTab} onChange={handleTabChange} centered>
+              <Tab label="Marks" />
+              <Tab label="Attendance" />
+            </Tabs>
+
+            {activeTab === 0 && (
+              <Box p={3}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setOpenMarkDialog(true)}
+                  sx={{ mb: 2 }}
+                >
+                  Add Mark
+                </Button>
+
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Student</TableCell>
+                        <TableCell>Subject</TableCell>
+                        <TableCell>Score</TableCell>
+                        <TableCell>Grade</TableCell>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Date</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {marks.map((mark) => (
+                        <TableRow key={mark._id}>
+                          <TableCell>{mark.student.first_name} {mark.student.last_name}</TableCell>
+                          <TableCell>{mark.subject}</TableCell>
+                          <TableCell>{mark.score}/{mark.total_score}</TableCell>
+                          <TableCell>{mark.grade}</TableCell>
+                          <TableCell>{mark.assessment_type}</TableCell>
+                          <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {activeTab === 1 && (
+              <Box p={3}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setOpenAttendanceDialog(true)}
+                  sx={{ mb: 2 }}
+                >
+                  Mark Attendance
+                </Button>
+
+                <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableHeader>Class</TableHeader>
-                  <TableHeader>Subject</TableHeader>
-                  <TableHeader>Time</TableHeader>
-                  <TableHeader>Room</TableHeader>
+                        <TableCell>Student</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Reason</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {upcomingClasses.map((cls) => (
-                  <TableRow key={cls.id}>
-                    <TableCell className="font-medium text-gray-900">{cls.class}</TableCell>
-                    <TableCell>{cls.subject}</TableCell>
-                    <TableCell>{cls.time}</TableCell>
-                    <TableCell>{cls.room}</TableCell>
+                      {attendance.map((record) => (
+                        <TableRow key={record._id}>
+                          <TableCell>{record.student.first_name} {record.student.last_name}</TableCell>
+                          <TableCell>{record.status}</TableCell>
+                          <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{record.reason || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+                </TableContainer>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
 
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-medium text-gray-900">Pending Tasks</h2>
-          </CardHeader>
-          <CardContent>
+      {/* Add Mark Dialog */}
+      <Dialog open={openMarkDialog} onClose={() => setOpenMarkDialog(false)}>
+        <DialogTitle>Add Mark</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Student</InputLabel>
+            <Select
+              value={markForm.studentId}
+              onChange={handleMarkFormChange('studentId')}
+            >
+              {students.map((student) => (
+                <MenuItem key={student._id} value={student._id}>
+                  {student.first_name} {student.last_name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Subject"
+            value={markForm.subject}
+            onChange={handleMarkFormChange('subject')}
+            sx={{ mt: 2 }}
+          />
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Score"
+            value={markForm.score}
+            onChange={handleMarkFormChange('score')}
+            sx={{ mt: 2 }}
+          />
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Total Score"
+            value={markForm.totalScore}
+            onChange={handleMarkFormChange('totalScore')}
+            sx={{ mt: 2 }}
+          />
+
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Assessment Type</InputLabel>
+            <Select
+              value={markForm.assessmentType}
+              onChange={handleMarkFormChange('assessmentType')}
+            >
+              <MenuItem value="quiz">Quiz</MenuItem>
+              <MenuItem value="homework">Homework</MenuItem>
+              <MenuItem value="exam">Exam</MenuItem>
+              <MenuItem value="project">Project</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Remarks"
+            value={markForm.remarks}
+            onChange={handleMarkFormChange('remarks')}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenMarkDialog(false)}>Cancel</Button>
+          <Button onClick={handleAddMark} variant="contained" color="primary">
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mark Attendance Dialog */}
+      <Dialog
+        open={openAttendanceDialog}
+        onClose={() => setOpenAttendanceDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Mark Attendance</DialogTitle>
+        <DialogContent>
+          <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableHeader>Task</TableHeader>
-                  <TableHeader>Due Date</TableHeader>
-                  <TableHeader>Priority</TableHeader>
+                  <TableCell>Student</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Reason</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {pendingTasks.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell className="font-medium text-gray-900">{task.task}</TableCell>
-                    <TableCell>{task.dueDate}</TableCell>
+                {students.map((student) => (
+                  <TableRow key={student._id}>
+                    <TableCell>{student.first_name} {student.last_name}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        task.priority === 'high' 
-                          ? 'bg-red-100 text-red-800' 
-                          : task.priority === 'medium'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-green-100 text-green-800'
-                      }`}>
-                        {task.priority}
-                      </span>
+                      <Select
+                        value={attendanceForm[student._id]?.status || 'present'}
+                        onChange={handleAttendanceFormChange(student._id, 'status')}
+                      >
+                        <MenuItem value="present">Present</MenuItem>
+                        <MenuItem value="absent">Absent</MenuItem>
+                        <MenuItem value="late">Late</MenuItem>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        fullWidth
+                        value={attendanceForm[student._id]?.reason || ''}
+                        onChange={handleAttendanceFormChange(student._id, 'reason')}
+                        placeholder="Reason (optional)"
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAttendanceDialog(false)}>Cancel</Button>
+          <Button onClick={handleMarkAttendance} variant="contained" color="primary">
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
-}
+};
+
+export default TeacherDashboard;

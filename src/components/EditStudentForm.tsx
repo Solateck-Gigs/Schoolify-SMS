@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import Select from './ui/Select';
 import { Label } from './ui/Label';
 import { toast } from 'react-hot-toast';
+import api from '../services/api';
 
 interface EditStudentFormProps {
   student: any; // TODO: Define a proper interface for student with all fields
@@ -55,53 +55,35 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ student, onSuccess, o
   // Fetch parents when search term changes (with a debounce in a real app)
   useEffect(() => {
     const fetchParents = async () => {
-      if (parentSearchTerm.length < 2 && !formData.parentId) {
-         setParentOptions([]);
-         return;
-      }
-      setLoadingParents(true);
-
-      let query = supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'parent');
-
-      if (parentSearchTerm.length >= 2) {
-         query = query.ilike('first_name', `%${parentSearchTerm}%`)
-                      .or(`last_name.ilike.%${parentSearchTerm}%`);
-      } else if (formData.parentId) {
-         query = query.eq('id', formData.parentId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
+      try {
+        let parents = [];
+        if (parentSearchTerm.length >= 2) {
+          const response = await api.get('/parents', { params: { search: parentSearchTerm } });
+          parents = response.data;
+        } else if (formData.parentId) {
+          const response = await api.get(`/parents/${formData.parentId}`);
+          parents = [response.data];
+        }
+        if (parentSearchTerm.length >= 2) {
+          setParentOptions(parents.map((parent: any) => ({
+            value: parent.id,
+            label: `${parent.first_name} ${parent.last_name}`,
+          })));
+        } else if (formData.parentId && parents && parents.length > 0) {
+          setSelectedParentName(`${parents[0].first_name} ${parents[0].last_name}`);
+        }
+      } catch (error) {
         console.error('Error fetching parents:', error);
-        setParentOptions([]);
-      } else {
-         if (parentSearchTerm.length >= 2) {
-            setParentOptions(data?.map((parent: any) => ({ // Explicitly type parent
-              value: parent.id,
-              label: `${parent.first_name} ${parent.last_name}`,
-            })) || []);
-         } else if (formData.parentId && data && data.length > 0) {
-             setSelectedParentName(`${data[0].first_name} ${data[0].last_name}`);
-         }
       }
-      setLoadingParents(false);
     };
-
     if (formData.parentId && parentSearchTerm === '') {
         fetchParents();
     } else if (parentSearchTerm.length >= 2) {
        const debounceTimer = setTimeout(() => {
          fetchParents();
        }, 300);
-
        return () => clearTimeout(debounceTimer);
     }
-
-
   }, [parentSearchTerm, formData.parentId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -147,55 +129,38 @@ const EditStudentForm: React.FC<EditStudentFormProps> = ({ student, onSuccess, o
         toast.error('Please fill in all required fields.');
         return;
       }
-
-      // Update students table
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .update({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          date_of_birth: formData.dateOfBirth,
-          gender: formData.gender,
-          enrollment_date: formData.enrollmentDate,
-          class_level: formData.classLevel,
-          section: formData.section || null,
-          parent_id: formData.parentId,
-          address: formData.address || null,
-          contact_number: formData.contactNumber || null,
-          email: formData.email || null,
-          profile_image: formData.profileImage || null,
-          blood_type: formData.bloodType || null,
-          medical_conditions: formData.medicalConditions.length > 0 ? formData.medicalConditions : null,
-          allergies: formData.allergies.length > 0 ? formData.allergies : null,
-          specialNeeds: formData.specialNeeds.length > 0 ? formData.specialNeeds : null,
-          notes: formData.notes || null,
-        })
-        .eq('id', student.id)
-        .select().single();
-
-      if (studentError) throw studentError;
-
-      // Handle emergency contacts: Delete existing and re-insert all from form
-      const { error: deleteContactsError } = await supabase
-        .from('emergency_contacts')
-        .delete()
-        .eq('student_id', student.id);
-      if (deleteContactsError) throw deleteContactsError;
+      // Update student via backend
+      const studentObj = await api.put(`/students/${student.id}`, {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        enrollment_date: formData.enrollmentDate,
+        class_level: formData.classLevel,
+        section: formData.section || null,
+        parent_id: formData.parentId,
+        address: formData.address || null,
+        contact_number: formData.contactNumber || null,
+        email: formData.email || null,
+        profile_image: formData.profileImage || null,
+        blood_type: formData.bloodType || null,
+        medical_conditions: formData.medicalConditions.length > 0 ? formData.medicalConditions : null,
+        allergies: formData.allergies.length > 0 ? formData.allergies : null,
+        special_needs: formData.specialNeeds.length > 0 ? formData.specialNeeds : null,
+        notes: formData.notes || null,
+      });
+      // Update emergency contacts: delete all and re-insert
+      await api.delete(`/emergency-contacts/${student.id}`);
       if (formData.emergencyContacts.length > 0) {
-        const contactsToInsert = formData.emergencyContacts.map((contact: EmergencyContact) => ({
+        await api.post('/emergency-contacts', {
           student_id: student.id,
-          name: contact.name,
-          relationship: contact.relationship,
-          phone: contact.phone,
-        }));
-        const { error: insertContactsError } = await supabase
-          .from('emergency_contacts')
-          .insert(contactsToInsert);
-        if (insertContactsError) throw insertContactsError;
+          contacts: formData.emergencyContacts.map((contact: EmergencyContact) => ({
+            name: contact.name,
+            relationship: contact.relationship,
+            phone: contact.phone,
+          })),
+        });
       }
-
-      // TODO: Implement update/delete/insert logic for achievements and extracurricular activities
-
       toast.success('Student updated successfully!');
       onSuccess();
     } catch (error) {

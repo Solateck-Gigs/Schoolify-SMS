@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/lib/store';
-import { supabase } from '@/lib/supabase';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { toast } from 'react-hot-toast';
 import { User, Bell, Lock, UserCircle } from 'lucide-react';
+import { apiFetch } from '../../lib/api';
 
 interface NotificationPreferences {
   email_notifications: boolean;
@@ -38,18 +38,8 @@ export default function ProfileSettings() {
     if (user) {
       // Fetch user profile data
       const fetchProfile = async () => {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching profile:', error);
-          return;
-        }
-
-        if (profile) {
+        try {
+          const profile = await apiFetch(`/users/${user.id}`);
           setFormData(prev => ({
             ...prev,
             full_name: profile.full_name || '',
@@ -57,25 +47,13 @@ export default function ProfileSettings() {
             phone: profile.phone || '',
           }));
           setProfileImage(profile.avatar_url);
-        }
-
-        // Fetch notification preferences
-        const { data: prefs, error: prefsError } = await supabase
-          .from('notification_preferences')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (prefsError) {
-          console.error('Error fetching notification preferences:', prefsError);
-          return;
-        }
-
-        if (prefs) {
+          // Fetch notification preferences
+          const prefs = await apiFetch(`/users/${user.id}/notification-preferences`);
           setNotificationPrefs(prefs);
+        } catch (error) {
+          console.error('Error fetching profile or preferences:', error);
         }
       };
-
       fetchProfile();
     }
   }, [user]);
@@ -83,30 +61,17 @@ export default function ProfileSettings() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-
     try {
       setLoading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
+      // You may need to implement an /upload endpoint in your backend
+      const formDataObj = new FormData();
+      formDataObj.append('avatar', file);
+      const response = await fetch(`/users/${user.id}/avatar`, {
+        method: 'POST',
+        body: formDataObj,
+      });
+      if (!response.ok) throw new Error('Failed to upload image');
+      const { publicUrl } = await response.json();
       setProfileImage(publicUrl);
       toast.success('Profile image updated successfully');
     } catch (error) {
@@ -129,20 +94,16 @@ export default function ProfileSettings() {
 
   const updateProfile = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      await apiFetch(`/users/${user.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           full_name: formData.full_name,
           phone: formData.phone,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
+        }),
+      });
       toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -154,20 +115,19 @@ export default function ProfileSettings() {
 
   const updatePassword = async () => {
     if (!user || !formData.current_password || !formData.new_password) return;
-
     if (formData.new_password !== formData.confirm_password) {
       toast.error('New passwords do not match');
       return;
     }
-
     try {
       setLoading(true);
-      const { error } = await supabase.auth.updateUser({
-        password: formData.new_password
+      await apiFetch(`/users/${user.id}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          current_password: formData.current_password,
+          new_password: formData.new_password,
+        }),
       });
-
-      if (error) throw error;
-
       setFormData(prev => ({
         ...prev,
         current_password: '',
@@ -185,19 +145,15 @@ export default function ProfileSettings() {
 
   const updateNotificationPreferences = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
-      const { error } = await supabase
-        .from('notification_preferences')
-        .upsert({
-          user_id: user.id,
+      await apiFetch(`/users/${user.id}/notification-preferences`, {
+        method: 'PUT',
+        body: JSON.stringify({
           ...notificationPrefs,
           updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-
+        }),
+      });
       toast.success('Notification preferences updated successfully');
     } catch (error) {
       console.error('Error updating notification preferences:', error);

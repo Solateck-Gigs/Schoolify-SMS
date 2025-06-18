@@ -174,34 +174,34 @@ CREATE POLICY "Users can view their own profile"
 DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
 CREATE POLICY "Admins can view all profiles"
   ON profiles FOR SELECT
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) IN ('super_admin', 'admin'));
 
 DROP POLICY IF EXISTS "Super admins can manage profiles" ON profiles;
 CREATE POLICY "Super admins can manage profiles"
   ON profiles FOR ALL
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) = 'super_admin');
 
 -- Students policies
 DROP POLICY IF EXISTS "Admins can perform all operations on students" ON students;
 CREATE POLICY "Admins can perform all operations on students"
   ON students FOR ALL
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) IN ('super_admin', 'admin'));
 
 DROP POLICY IF EXISTS "Teachers can view students" ON students;
 CREATE POLICY "Teachers can view students"
   ON students FOR SELECT
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'teacher'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) = 'teacher');
 
 DROP POLICY IF EXISTS "Parents can only view their children" ON students;
 CREATE POLICY "Parents can only view their children"
   ON students FOR SELECT
-  USING (parent_id IN (SELECT id FROM parents WHERE user_id::text = auth.uid()::text));
+  USING (parent_id IN (SELECT id FROM profiles WHERE id = auth.uid() AND role = 'parent'));
 
 -- Fees policies
 DROP POLICY IF EXISTS "Admins can perform all operations on fees" ON fees;
 CREATE POLICY "Admins can perform all operations on fees"
   ON fees FOR ALL
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) IN ('super_admin', 'admin'));
 
 DROP POLICY IF EXISTS "Parents can view their children's fees" ON fees;
 CREATE POLICY "Parents can view their children's fees"
@@ -210,7 +210,7 @@ CREATE POLICY "Parents can view their children's fees"
     SELECT 1 FROM students
     WHERE students.id = fees.student_id
     AND students.parent_id IN (
-      SELECT id FROM parents WHERE user_id::text = auth.uid()::text
+      SELECT id FROM profiles WHERE id = auth.uid() AND role = 'parent'
     )
   ));
 
@@ -218,12 +218,12 @@ CREATE POLICY "Parents can view their children's fees"
 DROP POLICY IF EXISTS "Admins can perform all operations on marks" ON marks;
 CREATE POLICY "Admins can perform all operations on marks"
   ON marks FOR ALL
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) IN ('super_admin', 'admin'));
 
 DROP POLICY IF EXISTS "Teachers can manage marks" ON marks;
 CREATE POLICY "Teachers can manage marks"
   ON marks FOR ALL
-  USING (EXISTS (SELECT 1 FROM teachers WHERE user_id::text = auth.uid()::text));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) = 'teacher');
 
 DROP POLICY IF EXISTS "Parents can view their children's marks" ON marks;
 CREATE POLICY "Parents can view their children's marks"
@@ -232,7 +232,7 @@ CREATE POLICY "Parents can view their children's marks"
     SELECT 1 FROM students
     WHERE students.id = marks.student_id
     AND students.parent_id IN (
-      SELECT id FROM parents WHERE user_id::text = auth.uid()::text
+      SELECT id FROM profiles WHERE id = auth.uid() AND role = 'parent'
     )
   ));
 
@@ -245,7 +245,7 @@ CREATE POLICY "All authenticated users can view timetables"
 DROP POLICY IF EXISTS "Admins can manage timetables" ON timetables;
 CREATE POLICY "Admins can manage timetables"
   ON timetables FOR ALL
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id::text = auth.uid()::text AND role = 'super_admin'));
+  USING ((SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) IN ('super_admin', 'admin'));
 
 -- Messages policies
 DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
