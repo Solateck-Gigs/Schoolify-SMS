@@ -1,25 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { Fee } from '../models/Fee';
-import { Student } from '../models/Student';
+import { User } from '../models/User';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { Types } from 'mongoose';
 import { IUser } from '../models/User';
 import { Class } from '../models/Class';
 import { AuthRequest } from '../types/express';
-
-// Type guard for populated student
-interface PopulatedStudent {
-  parent?: { user: Types.ObjectId };
-  class?: { teacher: Types.ObjectId };
-  [key: string]: any;
-}
-
-function isPopulatedStudent(student: any): student is PopulatedStudent {
-  return student && (
-    (!student.parent || student.parent.user instanceof Types.ObjectId) &&
-    (!student.class || student.class.teacher instanceof Types.ObjectId)
-  );
-}
 
 const router = Router();
 
@@ -41,29 +27,19 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     const { user } = req as AuthRequest;
 
     const fee = await Fee.findById(req.params.id)
-      .populate({
-        path: 'student',
-        select: 'firstName lastName admissionNumber parent class',
-        populate: [
-          { path: 'parent', select: 'user' },
-          { path: 'class', select: 'teacher' }
-        ]
-      });
+      .populate('student', 'firstName lastName admissionNumber role class parent');
 
     if (!fee) {
       return res.status(404).json({ error: 'Fee record not found' });
     }
 
-    const populatedStudent = fee.student as unknown as PopulatedStudent;
-    if (!isPopulatedStudent(populatedStudent)) {
-      throw new Error('Failed to populate student');
-    }
+    const student = fee.student as any;
 
-    // Authorization check
+    // Authorization check - simplified since all data is in User model
     if (
       user.role === 'admin' ||
-      (user.role === 'parent' && populatedStudent.parent?.user.toString() === user._id.toString()) ||
-      (user.role === 'teacher' && populatedStudent.class?.teacher.toString() === user._id.toString())
+      (user.role === 'parent' && student.parent?.toString() === user._id.toString()) ||
+      (user.role === 'teacher' && student.class && await User.findOne({ _id: user._id, assignedClasses: student.class }))
     ) {
       res.json(fee);
     } else {
@@ -90,7 +66,7 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req: Request,
     } = req.body;
 
     // Check if student exists
-    const student = await Student.findById(studentId);
+    const student = await User.findOne({ _id: studentId, role: 'student' });
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
@@ -127,14 +103,7 @@ router.put('/:id', authenticateToken, requireRole(['admin']), async (req: Reques
     } = req.body;
 
     const fee = await Fee.findById(req.params.id)
-      .populate({
-        path: 'student',
-        select: 'firstName lastName admissionNumber parent class',
-        populate: [
-          { path: 'parent', select: 'user' },
-          { path: 'class', select: 'teacher' }
-        ]
-      });
+      .populate('student', 'firstName lastName admissionNumber');
 
     if (!fee) {
       return res.status(404).json({ error: 'Fee record not found' });
@@ -177,24 +146,17 @@ router.get('/student/:studentId', authenticateToken, async (req: Request, res: R
   try {
     const { user } = req as AuthRequest;
 
-    const student = await Student.findById(req.params.studentId)
-      .populate('parent', 'user')
-      .populate('class', 'teacher');
+    const student = await User.findOne({ _id: req.params.studentId, role: 'student' });
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const populatedStudent = student as unknown as PopulatedStudent;
-    if (!isPopulatedStudent(populatedStudent)) {
-      throw new Error('Failed to populate student');
-    }
-
-    // Authorization check
+    // Authorization check - simplified since all data is in User model
     if (
       user.role === 'admin' ||
-      (user.role === 'parent' && populatedStudent.parent?.user.toString() === user._id.toString()) ||
-      (user.role === 'teacher' && populatedStudent.class?.teacher.toString() === user._id.toString())
+      (user.role === 'parent' && student.parent?.toString() === user._id.toString()) ||
+      (user.role === 'teacher' && student.class && await User.findOne({ _id: user._id, assignedClasses: student.class }))
     ) {
       const fees = await Fee.find({ student: req.params.studentId })
         .populate('student', 'firstName lastName admissionNumber');
@@ -221,7 +183,11 @@ router.get('/class/:classId', authenticateToken, async (req: Request, res: Respo
 
     // Authorization check
     if (user.role === 'admin' || (user.role === 'teacher' && classData.teacher.toString() === user._id.toString())) {
-      const fees = await Fee.find({ 'student.class': req.params.classId })
+      // Get students in this class and their fees
+      const students = await User.find({ role: 'student', class: req.params.classId });
+      const studentIds = students.map(s => s._id);
+      
+      const fees = await Fee.find({ student: { $in: studentIds } })
         .populate('student', 'firstName lastName admissionNumber');
       res.json(fees);
     } else {

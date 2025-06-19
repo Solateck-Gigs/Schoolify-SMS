@@ -35,18 +35,29 @@ export const apiFetch = async <T>(
 ): Promise<T> => {
   const { method = 'GET', body, headers = {} } = options;
 
+  // Add Content-Type header for JSON requests
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    ...headers,
+  };
+
   try {
     const response = await api.request({
       url: endpoint,
       method,
       data: body,
-      headers,
+      headers: defaultHeaders,
     });
 
     return response.data;
   } catch (error: any) {
+    console.error('API Error:', error);
     if (error.response) {
-      throw new Error(error.response.data.message || 'An error occurred');
+      // Backend returned an error response
+      const errorMessage = error.response.data?.error || error.response.data?.message || 'An error occurred';
+      const errorObj = new Error(errorMessage);
+      (errorObj as any).response = error.response;
+      throw errorObj;
     }
     throw error;
   }

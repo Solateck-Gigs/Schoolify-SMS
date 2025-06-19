@@ -13,53 +13,24 @@ import EditStudentForm from '../../components/EditStudentForm';
 import api from '../../services/api';
 
 interface Student {
-  id: string;
+  _id: string;
   firstName: string;
   lastName: string;
+  email: string;
+  phone?: string;
+  role: 'student';
+  admissionNumber: string;
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
-  enrollmentDate: string;
-  classLevel: number;
-  section?: string;
-  parentId: string;
-  address?: string;
-  contactNumber?: string;
-  email?: string;
-  profileImage?: string;
-  bloodType?: string;
+  class?: string;
+  parent?: string;
   medicalConditions?: string[];
-  emergencyContacts?: {
-    name: string;
-    relationship: string;
-    phone: string;
-  }[];
-  achievements?: {
-    id: string;
-    title: string;
-    date: string;
-    description: string;
-    category: 'academic' | 'sports' | 'arts' | 'other';
-  }[];
-  extracurricularActivities?: {
-    id: string;
-    name: string;
-    role?: string;
-    startDate: string;
-    endDate?: string;
-  }[];
-  attendance?: {
-    present: number;
-    absent: number;
-    late: number;
-    total: number;
-  };
-  academicPerformance?: {
-    subject: string;
-    grade: string;
-    score: number;
-    term: string;
-    year: string;
-  }[];
+  bloodType?: string;
+  allergies?: string[];
+  specialNeeds?: string;
+  studentNotes?: string;
+  profileImage?: string;
+  createdAt: string;
 }
 
 interface ExtracurricularActivity {
@@ -97,8 +68,8 @@ export default function StudentsPage() {
         return;
       }
       
-      // Fetch students from backend
-      const { data } = await api.get('/admin/students');
+      // Fetch students from backend - now returns User documents with role: 'student'
+      const { data } = await api.get('/students');
       setStudents(data);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -121,9 +92,10 @@ export default function StudentsPage() {
   };
 
   const filteredStudents = students.filter(student => {
-    const matchesClass = filterClass ? student.classLevel.toString() === filterClass : true;
+    const matchesClass = filterClass ? student.class === filterClass : true;
     const matchesSearch = searchTerm 
-      ? `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+      ? `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
       : true;
     
     return matchesClass && matchesSearch;
@@ -161,8 +133,8 @@ export default function StudentsPage() {
   const handleDeleteStudent = async (studentId: string) => {
     if (window.confirm('Are you sure you want to delete this student?')) {
       try {
-        // Use backend API to delete student and related records
-        await api.delete(`/students/profile/${studentId}`);
+        // Use backend API to delete student
+        await api.delete(`/students/${studentId}`);
         toast.success('Student deleted successfully!');
         fetchStudents(); // Refresh the list
       } catch (error) {
@@ -172,16 +144,9 @@ export default function StudentsPage() {
     }
   };
 
-  const handleSearch = async (searchTerm: string) => {
-    try {
-      const { data } = await api.get('/students', {
-        params: { search: searchTerm }
-      });
-      setStudents(data);
-    } catch (error) {
-      console.error('Error searching students:', error);
-      toast.error('Failed to search students');
-    }
+  const handleSearch = (searchTerm: string) => {
+    setSearchTerm(searchTerm);
+    // The filtering is now handled locally in filteredStudents
   };
 
   if (selectedStudent) {
@@ -198,45 +163,48 @@ export default function StudentsPage() {
             <Button
               variant="primary"
               className="bg-red-600 hover:bg-red-700"
-              onClick={() => handleDeleteStudent(selectedStudent.id)}
+              onClick={() => handleDeleteStudent(selectedStudent._id)}
             >
-              <span className="flex items-center gap-2">
-                <Trash2 size={16} />
-                Delete Student
-              </span>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Student
             </Button>
           )}
         </div>
-        <StudentProfile student={selectedStudent} isParent={user?.role === 'parent'} />
+        <StudentProfile student={selectedStudent as any} />
       </div>
     );
   }
 
   if (showAddStudentForm) {
-    return <AddStudentForm onSuccess={handleAddStudentSuccess} onCancel={handleCancelAddStudent} />;
+    return (
+      <AddStudentForm 
+        onSuccess={handleAddStudentSuccess}
+        onCancel={handleCancelAddStudent}
+      />
+    );
   }
 
   if (studentToEdit) {
-    return <EditStudentForm student={studentToEdit} onSuccess={handleEditStudentSuccess} onCancel={handleCancelEditStudent} />;
+    return (
+      <EditStudentForm 
+        student={studentToEdit as any}
+        onSuccess={handleEditStudentSuccess}
+        onCancel={handleCancelEditStudent}
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Students</h1>
-          <p className="text-gray-600">Manage and view student information</p>
-        </div>
-        
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Students Management</h1>
         {isAdmin && (
           <Button
-            variant="primary"
             onClick={() => setShowAddStudentForm(true)}
+            className="bg-blue-600 hover:bg-blue-700"
           >
-            <span className="flex items-center gap-2">
-              <PlusCircle size={16} />
-              Add New Student
-            </span>
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Add Student
           </Button>
         )}
       </div>
@@ -244,134 +212,99 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
+            <div className="flex-1">
               <Input
-                type="text"
-                placeholder="Search by student name..."
+                placeholder="Search students by name or admission number..."
                 value={searchTerm}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                fullWidth
-                className="pl-10"
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full"
               />
-              <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             </div>
-            
             <div className="w-full sm:w-48">
               <Select
-                options={[{ value: '', label: 'All Classes' }, ...classOptions]}
                 value={filterClass}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterClass(e.target.value)}
-                fullWidth
+                onChange={(e) => setFilterClass(e.target.value)}
+                options={[
+                  { value: '', label: 'All Classes' },
+                  ...classOptions
+                ]}
               />
             </div>
           </div>
         </CardHeader>
-
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableHeader>Name</TableHeader>
-                  <TableHeader>Class</TableHeader>
-                  <TableHeader>Contact</TableHeader>
-                  <TableHeader>Status</TableHeader>
-                  <TableHeader>Actions</TableHeader>
-                  {isSuperAdmin && <TableHeader>Manage</TableHeader>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        {student.profileImage ? (
-                          <img
-                            src={student.profileImage}
-                            alt={`${student.firstName} ${student.lastName}`}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-600">
-                              {student.firstName[0]}{student.lastName[0]}
-                            </span>
-                          </div>
-                        )}
-                        <div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Admission Number</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Gender</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        No students found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredStudents.map((student) => (
+                      <TableRow key={student._id}>
+                        <TableCell className="font-medium">
                           {student.firstName} {student.lastName}
-                          <div className="text-xs text-gray-500">
-                            {student.email || 'No email'}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      Class {student.classLevel}
-                      {student.section ? ` - Section ${student.section}` : ''}
-                    </TableCell>
-                    <TableCell>
-                      {student.contactNumber || 'No contact'}
-                    </TableCell>
-                    <TableCell>
-                      {student.attendance && (
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          student.attendance.present / student.attendance.total >= 0.9
-                            ? 'bg-green-100 text-green-800'
-                            : student.attendance.present / student.attendance.total >= 0.75
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                        }`}>
-                          {Math.round((student.attendance.present / student.attendance.total) * 100)}% Attendance
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedStudent(student)}
-                      >
-                        View Profile
-                      </Button>
-                    </TableCell>
-                    {isSuperAdmin && (
-                      <TableCell>
-                         <div className="flex items-center gap-2">
-                           <Button
+                        </TableCell>
+                        <TableCell>{student.admissionNumber}</TableCell>
+                        <TableCell>{student.email}</TableCell>
+                        <TableCell>{student.phone || 'N/A'}</TableCell>
+                        <TableCell>{student.class || 'Not assigned'}</TableCell>
+                        <TableCell className="capitalize">{student.gender}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleEditStudent(student)}
-                              title="Edit Student"
-                           >
-                              <span className="flex items-center gap-2">
-                                <Edit size={16} />
-                                Edit
-                              </span>
-                           </Button>
-                           <Button
-                              variant="primary"
-                              className="bg-red-600 hover:bg-red-700"
-                              size="sm"
-                              onClick={() => handleDeleteStudent(student.id)}
-                              title="Delete Student"
-                           >
-                              <span className="flex items-center gap-2">
-                                <Trash2 size={16} />
-                                Delete
-                              </span>
-                           </Button>
-                         </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                              onClick={() => setSelectedStudent(student)}
+                            >
+                              View
+                            </Button>
+                            {isAdmin && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditStudent(student)}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteStudent(student._id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

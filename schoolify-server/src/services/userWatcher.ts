@@ -1,7 +1,4 @@
 import { User } from '../models/User';
-import { Teacher } from '../models/Teacher';
-import { Student } from '../models/Student';
-import { Parent } from '../models/Parent';
 import mongoose from 'mongoose';
 
 export const initializeUserWatcher = async () => {
@@ -22,22 +19,31 @@ export const initializeUserWatcher = async () => {
         const newUser = change.fullDocument;
         
         try {
+          // With centralized User model, all data is already in the user document
+          // Just log the user creation
+          console.log(`✅ New ${newUser.role} user created: ${newUser.firstName} ${newUser.lastName}`);
+          
+          // Optional: Add any additional initialization logic here
           switch (newUser.role) {
             case 'teacher':
-              await createTeacherRecord(newUser);
+              console.log(`📚 Teacher ${newUser.firstName} ${newUser.lastName} ready for class assignments`);
               break;
             case 'student':
-              await createStudentRecord(newUser);
+              console.log(`🎓 Student ${newUser.firstName} ${newUser.lastName} ready for enrollment`);
               break;
             case 'parent':
-              await createParentRecord(newUser);
+              console.log(`👨‍👩‍👧‍👦 Parent ${newUser.firstName} ${newUser.lastName} account created`);
+              break;
+            case 'admin':
+            case 'super_admin':
+              console.log(`🔐 Admin user ${newUser.firstName} ${newUser.lastName} created`);
               break;
             default:
-              // For admin and super_admin, no additional records needed
+              console.log(`👤 User ${newUser.firstName} ${newUser.lastName} created with role: ${newUser.role}`);
               break;
           }
         } catch (error) {
-          console.error(`Error creating ${newUser.role} record:`, error);
+          console.error(`Error processing new ${newUser.role} user:`, error);
         }
       }
     });
@@ -53,42 +59,4 @@ export const initializeUserWatcher = async () => {
     // Attempt to reinitialize after a delay
     setTimeout(() => initializeUserWatcher(), 5000);
   }
-};
-
-const createTeacherRecord = async (user: any) => {
-  const teacher = new Teacher({
-    user: user._id,
-    employeeId: `TCH${String(user._id).slice(-6)}`, // Generate employee ID using last 6 chars of user ID
-    dateOfHire: new Date(),
-    subjectsTaught: [],
-    assignedClasses: [],
-    qualifications: [],
-    experienceYears: 0
-  });
-  await teacher.save();
-  console.log(`✅ Teacher record created for user: ${user.firstName} ${user.lastName}`);
-};
-
-const createStudentRecord = async (user: any) => {
-  const student = new Student({
-    user: user._id,
-    admissionNumber: `STU${String(user._id).slice(-6)}`, // Generate admission number using last 6 chars of user ID
-    dateOfBirth: new Date(), // This should be updated later
-    gender: 'other', // This should be updated later
-    class: null, // This should be assigned later
-    parent: null, // This should be assigned later
-  });
-  await student.save();
-  console.log(`✅ Student record created for user: ${user.firstName} ${user.lastName}`);
-};
-
-const createParentRecord = async (user: any) => {
-  const parent = new Parent({
-    user: user._id,
-    homeAddress: '',
-    occupation: '',
-    children: []
-  });
-  await parent.save();
-  console.log(`✅ Parent record created for user: ${user.firstName} ${user.lastName}`);
 }; 

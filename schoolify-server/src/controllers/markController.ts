@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Mark } from '../models/Mark';
-import { Teacher } from '../models/Teacher';
-import { Student } from '../models/Student';
+import { User } from '../models/User';
 import { Class } from '../models/Class';
 
 // Get marks for a specific class
@@ -12,13 +11,13 @@ export const getClassMarks = async (req: Request, res: Response) => {
     const teacherId = req.user!._id;
 
     // Verify teacher is assigned to this class
-    const teacher = await Teacher.findOne({ user: teacherId });
-    if (!teacher || !teacher.assignedClasses.includes(new mongoose.Types.ObjectId(classId))) {
+    const teacher = await User.findOne({ _id: teacherId, role: 'teacher' });
+    if (!teacher || !teacher.assignedClasses?.includes(new mongoose.Types.ObjectId(classId))) {
       return res.status(403).json({ error: 'Not authorized to view marks for this class' });
     }
 
     const marks = await Mark.find({ class: classId })
-      .populate('student', 'user')
+      .populate('student', 'firstName lastName')
       .populate('teacher', 'firstName lastName')
       .sort({ date: -1 });
 
@@ -35,14 +34,14 @@ export const getStudentMarks = async (req: Request, res: Response) => {
     const teacherId = req.user!._id;
 
     // Get student's class
-    const student = await Student.findById(studentId).populate('class');
+    const student = await User.findOne({ _id: studentId, role: 'student' }).populate('class');
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
     // Verify teacher is assigned to student's class
-    const teacher = await Teacher.findOne({ user: teacherId });
-    if (!teacher || !teacher.assignedClasses.includes(student.class._id)) {
+    const teacher = await User.findOne({ _id: teacherId, role: 'teacher' });
+    if (!teacher || !student.class || !teacher.assignedClasses?.includes(student.class)) {
       return res.status(403).json({ error: 'Not authorized to view marks for this student' });
     }
 
@@ -63,8 +62,8 @@ export const addMark = async (req: Request, res: Response) => {
     const teacherId = req.user!._id;
 
     // Verify teacher is assigned to this class
-    const teacher = await Teacher.findOne({ user: teacherId });
-    if (!teacher || !teacher.assignedClasses.includes(new mongoose.Types.ObjectId(classId))) {
+    const teacher = await User.findOne({ _id: teacherId, role: 'teacher' });
+    if (!teacher || !teacher.assignedClasses?.includes(new mongoose.Types.ObjectId(classId))) {
       return res.status(403).json({ error: 'Not authorized to add marks for this class' });
     }
 
@@ -129,7 +128,7 @@ export const updateMark = async (req: Request, res: Response) => {
       else if (percentage >= 40) grade = 'C';
 
       mark.score = score;
-      mark.totalScore = totalScore;
+      mark.total_score = totalScore;
       mark.grade = grade;
     }
 
@@ -175,14 +174,14 @@ export const getStudentPerformanceSummary = async (req: Request, res: Response) 
     const teacherId = req.user!._id;
 
     // Get student's class
-    const student = await Student.findById(studentId).populate('class');
+    const student = await User.findOne({ _id: studentId, role: 'student' }).populate('class');
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
     // Verify teacher is assigned to student's class
-    const teacher = await Teacher.findOne({ user: teacherId });
-    if (!teacher || !teacher.assignedClasses.includes(student.class._id)) {
+    const teacher = await User.findOne({ _id: teacherId, role: 'teacher' });
+    if (!teacher || !student.class || !teacher.assignedClasses?.includes(student.class)) {
       return res.status(403).json({ error: 'Not authorized to view performance for this student' });
     }
 
@@ -211,7 +210,7 @@ export const getStudentPerformanceSummary = async (req: Request, res: Response) 
       if (!summary.subjectAverages[mark.subject]) {
         summary.subjectAverages[mark.subject] = { total: 0, count: 0, average: 0 };
       }
-      const percentage = (mark.score / mark.totalScore) * 100;
+      const percentage = (mark.score / mark.total_score) * 100;
       summary.subjectAverages[mark.subject].total += percentage;
       summary.subjectAverages[mark.subject].count++;
       totalPercentage += percentage;

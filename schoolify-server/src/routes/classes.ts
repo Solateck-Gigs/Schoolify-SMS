@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { Class, IClass } from '../models/Class';
-import { Student } from '../models/Student';
+import { User } from '../models/User';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
 import { Types } from 'mongoose';
@@ -142,7 +142,7 @@ router.delete('/details/:id', authenticateToken, requireRole(['admin', 'super_ad
     }
 
     // Check if class has students
-    const studentCount = await Student.countDocuments({ class: classId });
+    const studentCount = await User.countDocuments({ role: 'student', class: classId });
     if (studentCount > 0) {
       return res.status(400).json({
         error: 'Cannot delete class with enrolled students. Please reassign or remove students first.'
@@ -182,9 +182,9 @@ router.get('/stats/:id', authenticateToken, async (req: Request, res: Response) 
     }
 
     // Get class statistics
-    const totalStudents = await Student.countDocuments({ class: classId });
-    const maleStudents = await Student.countDocuments({ class: classId, gender: 'male' });
-    const femaleStudents = await Student.countDocuments({ class: classId, gender: 'female' });
+    const totalStudents = await User.countDocuments({ role: 'student', class: classId });
+    const maleStudents = await User.countDocuments({ role: 'student', class: classId, gender: 'male' });
+    const femaleStudents = await User.countDocuments({ role: 'student', class: classId, gender: 'female' });
 
     const stats = {
       classInfo: {
@@ -228,9 +228,8 @@ router.get('/students/:id', authenticateToken, async (req: Request, res: Respons
       return res.status(403).json({ error: 'Not authorized to view class students' });
     }
 
-    const students = await Student.find({ class: classId })
-      .populate('user', 'firstName lastName email')
-      .populate('parent', 'firstName lastName email');
+    const students = await User.find({ role: 'student', class: classId })
+      .select('-password');
 
     res.status(200).json({
       classInfo: {
