@@ -284,39 +284,39 @@ const AdminDashboard: React.FC = () => {
       {activeTab === 0 && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
+        <Card>
+          <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Student Performance
                 </Typography>
                 <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
+            <Table>
+              <TableHead>
+                <TableRow>
                         <TableCell>Student Name</TableCell>
                         <TableCell>Class</TableCell>
                         <TableCell>Average Score</TableCell>
                         <TableCell>Grade</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                       {studentPerformance.map((item: any) => (
                         <TableRow key={item.student._id}>
                           <TableCell>
                             {item.student.first_name} {item.student.last_name}
                           </TableCell>
-                          <TableCell>
+                    <TableCell>
                             {item.student.class.name} - {item.student.class.section}
-                          </TableCell>
+                    </TableCell>
                           <TableCell>{item.performance.averageScore}%</TableCell>
                           <TableCell>{item.performance.grade || 'N/A'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
                 </TableContainer>
-              </CardContent>
-            </Card>
+          </CardContent>
+        </Card>
           </Grid>
         </Grid>
       )}
@@ -324,23 +324,23 @@ const AdminDashboard: React.FC = () => {
       {activeTab === 1 && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
+        <Card>
+          <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Student Attendance
                 </Typography>
                 <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
+            <Table>
+              <TableHead>
+                <TableRow>
                         <TableCell>Student Name</TableCell>
                         <TableCell>Class</TableCell>
                         <TableCell>Present Days</TableCell>
                         <TableCell>Absent Days</TableCell>
                         <TableCell>Attendance %</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                       {attendanceData.map((item: any) => (
                         <TableRow key={item.student._id}>
                           <TableCell>
@@ -352,10 +352,10 @@ const AdminDashboard: React.FC = () => {
                           <TableCell>{item.attendance.present}</TableCell>
                           <TableCell>{item.attendance.absent}</TableCell>
                           <TableCell>{item.attendance.presentPercentage}%</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
                 </TableContainer>
               </CardContent>
             </Card>
@@ -374,8 +374,8 @@ const AdminDashboard: React.FC = () => {
                 <Typography variant="body2" color="text.secondary">
                   Analytics and charts will be displayed here.
                 </Typography>
-              </CardContent>
-            </Card>
+          </CardContent>
+        </Card>
           </Grid>
         </Grid>
       )}

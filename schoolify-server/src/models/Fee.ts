@@ -16,7 +16,7 @@ const FeeSchema: Schema = new Schema(
   {
     student: {
       type: Schema.Types.ObjectId,
-      ref: 'Student',
+      ref: 'User',
       required: true,
     },
     academicYear: {

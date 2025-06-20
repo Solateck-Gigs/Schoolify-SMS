@@ -4,6 +4,38 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
+// Search parents
+router.get('/search', authenticateToken, async (req, res) => {
+  try {
+    const { search } = req.query;
+    
+    if (!search || typeof search !== 'string' || search.trim().length < 2) {
+      return res.json([]);
+    }
+
+    const searchTerm = search.trim();
+    const searchRegex = new RegExp(searchTerm, 'i');
+
+    const parents = await User.find({
+      role: 'parent',
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
+        { user_id_number: searchRegex }
+      ]
+    })
+    .select('_id firstName lastName email user_id_number')
+    .limit(10)
+    .sort({ firstName: 1, lastName: 1 });
+
+    res.json(parents);
+  } catch (error) {
+    console.error('Error searching parents:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get all parents
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -45,12 +77,42 @@ router.put('/:id', authenticateToken, async (req, res) => {
       homeAddress, occupation, children
     } = req.body;
 
+    // Prepare update data
+    const updateData: any = {
+      firstName, lastName, email, phone,
+      homeAddress, occupation
+    };
+
+    // Convert children user ID strings to ObjectIds if provided
+    if (children && Array.isArray(children) && children.length > 0) {
+      try {
+        const childObjectIds = [];
+        for (const childUserId of children) {
+          if (childUserId && childUserId.trim()) {
+            const childUser = await User.findOne({ 
+              user_id_number: childUserId.trim(), 
+              role: 'student' 
+            });
+            if (childUser) {
+              childObjectIds.push(childUser._id);
+            } else {
+              console.warn(`Student with user ID ${childUserId} not found`);
+            }
+          }
+        }
+        updateData.children = childObjectIds;
+      } catch (error) {
+        console.error('Error converting children user IDs to ObjectIds:', error);
+        // Continue without updating children if conversion fails
+      }
+    } else if (children !== undefined) {
+      // If children is explicitly set to empty array or null, clear it
+      updateData.children = [];
+    }
+
     const parent = await User.findOneAndUpdate(
       { _id: req.params.id, role: 'parent' },
-      {
-        firstName, lastName, email, phone,
-        homeAddress, occupation, children
-      },
+      updateData,
       { new: true, runValidators: true }
     ).select('-password');
 

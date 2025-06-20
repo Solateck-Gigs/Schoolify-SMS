@@ -22,7 +22,7 @@ interface Student {
   admissionNumber: string;
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
-  class?: string;
+  class?: string | { _id: string; name: string };
   parent?: string;
   medicalConditions?: string[];
   bloodType?: string;
@@ -92,7 +92,10 @@ export default function StudentsPage() {
   };
 
   const filteredStudents = students.filter(student => {
-    const matchesClass = filterClass ? student.class === filterClass : true;
+    const studentClassId = typeof student.class === 'object' && student.class 
+      ? student.class._id 
+      : student.class;
+    const matchesClass = filterClass ? studentClassId === filterClass : true;
     const matchesSearch = searchTerm 
       ? `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
@@ -240,64 +243,65 @@ export default function StudentsPage() {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHead>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Admission Number</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Gender</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHeader>Name</TableHeader>
+                    <TableHeader>Admission Number</TableHeader>
+                    <TableHeader>Email</TableHeader>
+                    <TableHeader>Phone</TableHeader>
+                    <TableHeader>Class</TableHeader>
+                    <TableHeader>Gender</TableHeader>
+                    <TableHeader className="text-right">Actions</TableHeader>
                   </TableRow>
-                </TableHeader>
+                </TableHead>
                 <TableBody>
                   {filteredStudents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={7} className="text-center">
                         No students found
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredStudents.map((student) => (
                       <TableRow key={student._id}>
-                        <TableCell className="font-medium">
+                        <TableCell>
                           {student.firstName} {student.lastName}
                         </TableCell>
                         <TableCell>{student.admissionNumber}</TableCell>
                         <TableCell>{student.email}</TableCell>
                         <TableCell>{student.phone || 'N/A'}</TableCell>
-                        <TableCell>{student.class || 'Not assigned'}</TableCell>
-                        <TableCell className="capitalize">{student.gender}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedStudent(student)}
-                            >
-                              View
-                            </Button>
-                            {isAdmin && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditStudent(student)}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDeleteStudent(student._id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                          {typeof student.class === 'object' && student.class 
+                            ? (student.class as any).name 
+                            : student.class || 'Not assigned'}
+                        </TableCell>
+                        <TableCell className="capitalize">{student.gender}</TableCell>
+                        <TableCell className="text-right flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedStudent(student)}
+                          >
+                            View
+                          </Button>
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditStudent(student)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleDeleteStudent(student._id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

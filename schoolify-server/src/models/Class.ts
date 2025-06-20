@@ -5,7 +5,7 @@ export interface IClass extends Document {
   name: string;
   section: string;
   academicYear: string;
-  teacher: mongoose.Types.ObjectId | IUser;
+  teacher?: mongoose.Types.ObjectId | IUser;
   capacity: number;
   description?: string;
   createdAt: Date;
@@ -31,7 +31,7 @@ const classSchema = new Schema<IClass>({
   teacher: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   capacity: {
     type: Number,

@@ -16,6 +16,7 @@ import CreateUserPage from './pages/CreateUsers/CreateUsers';
 import SuggestionsPage from './pages/Suggestions/SuggestionsPage';
 import ProfileSettings from './pages/Settings/ProfileSettings';
 import TeachersPage from './pages/Teachers/TeachersPage';
+import ParentsPage from './pages/Parents/ParentsPage';
 import ClassesPage from './pages/Classes/ClassesPage';
 import { UNSAFE_DataRouterContext, UNSAFE_DataRouterStateContext } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
@@ -266,6 +267,17 @@ function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['super_admin', 'admin']}>
                   <TeachersPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/parents"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin']}>
+                  <ParentsPage />
                 </RoleRoute>
               </ProtectedRoute>
             }

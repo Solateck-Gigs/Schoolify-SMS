@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
+import mongoose from 'mongoose';
 
 // Enhanced registration for all roles in one endpoint
 export const register = async (req: Request, res: Response) => {
@@ -87,8 +88,35 @@ export const register = async (req: Request, res: Response) => {
       userData.admissionNumber = admissionNumber;
       userData.dateOfBirth = dateOfBirth;
       userData.gender = gender;
-      if (classId) userData.class = classId;
-      if (parentId) userData.parent = parentId;
+      
+      // Handle classId - convert to ObjectId if it's a valid ObjectId string, otherwise leave as null
+      if (classId) {
+        try {
+          // Check if classId is a valid ObjectId string
+          if (mongoose.Types.ObjectId.isValid(classId)) {
+            userData.class = new mongoose.Types.ObjectId(classId);
+          } else {
+            console.warn(`Invalid classId provided: ${classId}. Skipping class assignment.`);
+            // Don't set class if invalid ObjectId
+          }
+        } catch (error) {
+          console.error('Error processing classId:', error);
+        }
+      }
+      
+      // Handle parentId - convert to ObjectId if valid
+      if (parentId) {
+        try {
+          if (mongoose.Types.ObjectId.isValid(parentId)) {
+            userData.parent = new mongoose.Types.ObjectId(parentId);
+          } else {
+            console.warn(`Invalid parentId provided: ${parentId}. Skipping parent assignment.`);
+          }
+        } catch (error) {
+          console.error('Error processing parentId:', error);
+        }
+      }
+      
       if (medicalConditions) userData.medicalConditions = medicalConditions;
       if (bloodType) userData.bloodType = bloodType;
       if (allergies) userData.allergies = allergies;
@@ -98,8 +126,31 @@ export const register = async (req: Request, res: Response) => {
 
     if (role === 'parent') {
       userData.homeAddress = homeAddress;
-      if (children) userData.children = children;
       if (occupation) userData.occupation = occupation;
+      
+      // Convert children user ID strings to ObjectIds
+      if (children && Array.isArray(children) && children.length > 0) {
+        try {
+          const childObjectIds = [];
+          for (const childUserId of children) {
+            if (childUserId && childUserId.trim()) {
+              const childUser = await User.findOne({ 
+                user_id_number: childUserId.trim(), 
+                role: 'student' 
+              });
+              if (childUser) {
+                childObjectIds.push(childUser._id);
+              } else {
+                console.warn(`Student with user ID ${childUserId} not found`);
+              }
+            }
+          }
+          userData.children = childObjectIds;
+        } catch (error) {
+          console.error('Error converting children user IDs to ObjectIds:', error);
+          // Continue without children if conversion fails
+        }
+      }
     }
 
     // Create new user
