@@ -42,8 +42,8 @@ import { GraduationCap, Receipt, Clock, Award } from 'lucide-react';
 
 interface Child {
   _id: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   class: {
     name: string;
     section: string;
@@ -59,8 +59,8 @@ interface Mark {
   assessment_type: string;
   date: string;
   teacher: {
-    first_name: string;
-    last_name: string;
+    firstName: string;
+    lastName: string;
   };
 }
 
@@ -170,11 +170,13 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, p
 
 const ParentDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [childrenLoading, setChildrenLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [timeRange, setTimeRange] = useState('6');
   const [marks, setMarks] = useState<Mark[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [fees, setFees] = useState<Fee[]>([]);
@@ -192,7 +194,6 @@ const ParentDashboard: React.FC = () => {
     rankingChange: 15.0
   });
   const [monthlyStats, setMonthlyStats] = useState([]);
-  const [timeRange, setTimeRange] = useState('6');
 
   useEffect(() => {
     fetchChildren();
@@ -206,9 +207,14 @@ const ParentDashboard: React.FC = () => {
     }
   }, [selectedChild, timeRange]);
 
+  useEffect(() => {
+    console.log('Fees state changed:', fees);
+  }, [fees]);
+
   const fetchChildren = async () => {
+    setChildrenLoading(true);
     try {
-      const response = await api.get('/parent/children');
+      const response = await api.get('/parents/children');
       setChildren(response.data);
       if (response.data.length > 0) {
         setSelectedChild(response.data[0]._id);
@@ -216,6 +222,7 @@ const ParentDashboard: React.FC = () => {
     } catch (err) {
       setError('Error fetching children');
     } finally {
+      setChildrenLoading(false);
       setLoading(false);
     }
   };
@@ -224,9 +231,9 @@ const ParentDashboard: React.FC = () => {
     setLoading(true);
     try {
       const [performanceRes, attendanceRes, feesRes] = await Promise.all([
-        api.get(`/parent/child/${selectedChild}/performance`),
-        api.get(`/parent/child/${selectedChild}/attendance`),
-        api.get(`/parent/child/${selectedChild}/fees`)
+        api.get(`/parents/child/${selectedChild}/performance`),
+        api.get(`/parents/child/${selectedChild}/attendance`),
+        api.get(`/parents/child/${selectedChild}/fees`)
       ]);
 
       setMarks(performanceRes.data.marks);
@@ -244,7 +251,7 @@ const ParentDashboard: React.FC = () => {
 
   const fetchChildStats = async () => {
     try {
-      const response = await api.get(`/parent/child/${selectedChild}/stats`);
+      const response = await api.get(`/parents/child/${selectedChild}/stats`);
       setChildStats(response.data);
     } catch (err) {
       setError('Error fetching child statistics');
@@ -253,7 +260,7 @@ const ParentDashboard: React.FC = () => {
 
   const fetchMonthlyStats = async () => {
     try {
-      const response = await api.get(`/parent/child/${selectedChild}/monthly-stats`, {
+      const response = await api.get(`/parents/child/${selectedChild}/monthly-stats`, {
         params: { months: timeRange }
       });
       setMonthlyStats(response.data);
@@ -270,7 +277,7 @@ const ParentDashboard: React.FC = () => {
     setActiveTab(newValue);
   };
 
-  if (loading) {
+  if (loading || childrenLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
         <CircularProgress />
@@ -282,21 +289,42 @@ const ParentDashboard: React.FC = () => {
     <Box p={3}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+      {/* Debug Information */}
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="body2">
+          <strong>Debug Info:</strong><br/>
+          User Role: {user?.role}<br/>
+          User ID: {user?._id}<br/>
+          Children Count: {children.length}<br/>
+          Selected Child: {selectedChild || 'None'}
+        </Typography>
+      </Alert>
+
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <FormControl fullWidth>
-            <InputLabel>Select Child</InputLabel>
-            <Select
-              value={selectedChild}
-              onChange={handleChildChange}
-            >
-              {children.map((child) => (
-                <MenuItem key={child._id} value={child._id}>
-                  {child.first_name} {child.last_name} - {child.class.name} {child.class.section}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {!childrenLoading && children.length === 0 ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body1">
+                <strong>Your child hasn't enrolled yet</strong><br/>
+                Please contact the school administration to link your children to your account or complete the enrollment process.
+              </Typography>
+            </Alert>
+          ) : (
+            <FormControl fullWidth>
+              <InputLabel>Select Child</InputLabel>
+              <Select
+                value={selectedChild}
+                onChange={handleChildChange}
+                disabled={children.length === 0}
+              >
+                {children.map((child) => (
+                  <MenuItem key={child._id} value={child._id}>
+                    {child.firstName} {child.lastName} - {child.class?.name} {child.class?.section}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
         </Grid>
 
         <Grid item xs={12}>
@@ -369,7 +397,7 @@ const ParentDashboard: React.FC = () => {
                           <TableCell>{mark.score}/{mark.total_score}</TableCell>
                           <TableCell>{mark.grade}</TableCell>
                           <TableCell>{mark.assessment_type}</TableCell>
-                          <TableCell>{mark.teacher.first_name} {mark.teacher.last_name}</TableCell>
+                          <TableCell>{mark.teacher.firstName} {mark.teacher.lastName}</TableCell>
                           <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
@@ -443,71 +471,82 @@ const ParentDashboard: React.FC = () => {
 
             {activeTab === 2 && (
               <Box p={3}>
-                {feeSummary && (
-                  <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h6" gutterBottom>Fee Overview</Typography>
-                          <Typography variant="h4">
-                            ${feeSummary.paidFees.toLocaleString()}
-                          </Typography>
-                          <Typography color="textSecondary">
-                            Total Paid
-                          </Typography>
-          </CardContent>
-        </Card>
-                    </Grid>
-                    <Grid item xs={12} md={8}>
-      <Card>
-        <CardContent>
-                          <Typography variant="h6" gutterBottom>Fee Summary</Typography>
-                          <Grid container spacing={2}>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Total Fees</Typography>
-                              <Typography variant="h6">${feeSummary.totalFees.toLocaleString()}</Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Paid</Typography>
-                              <Typography variant="h6">${feeSummary.paidFees.toLocaleString()}</Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Outstanding</Typography>
-                              <Typography variant="h6">${feeSummary.outstandingFees.toLocaleString()}</Typography>
-                            </Grid>
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                )}
+                {fees.length === 0 ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body1">
+                      <strong>No fees activated yet</strong><br/>
+                      Fees will appear here once the school administration assigns them to your child.
+                    </Typography>
+                  </Alert>
+                ) : (
+                  <>
+                    {feeSummary && (
+                      <Grid container spacing={3} sx={{ mb: 3 }}>
+                        <Grid item xs={12} md={4}>
+                          <Card>
+                            <CardContent>
+                              <Typography variant="h6" gutterBottom>Fee Overview</Typography>
+                              <Typography variant="h4">
+                                ${(feeSummary.paidFees || 0).toLocaleString()}
+                              </Typography>
+                              <Typography color="textSecondary">
+                                Total Paid
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                        <Grid item xs={12} md={8}>
+                          <Card>
+                            <CardContent>
+                              <Typography variant="h6" gutterBottom>Fee Summary</Typography>
+                              <Grid container spacing={2}>
+                                <Grid item xs={4}>
+                                  <Typography variant="body2" color="textSecondary">Total Fees</Typography>
+                                  <Typography variant="h6">${(feeSummary.totalFees || 0).toLocaleString()}</Typography>
+                                </Grid>
+                                <Grid item xs={4}>
+                                  <Typography variant="body2" color="textSecondary">Paid</Typography>
+                                  <Typography variant="h6">${(feeSummary.paidFees || 0).toLocaleString()}</Typography>
+                                </Grid>
+                                <Grid item xs={4}>
+                                  <Typography variant="body2" color="textSecondary">Outstanding</Typography>
+                                  <Typography variant="h6">${(feeSummary.outstandingFees || 0).toLocaleString()}</Typography>
+                                </Grid>
+                              </Grid>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      </Grid>
+                    )}
 
-                <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                        <TableCell>Academic Year</TableCell>
-                        <TableCell>Term</TableCell>
-                        <TableCell>Amount Due</TableCell>
-                        <TableCell>Amount Paid</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Due Date</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-                      {fees.map((fee) => (
-                        <TableRow key={fee._id}>
-                          <TableCell>{fee.academic_year}</TableCell>
-                          <TableCell>{fee.term}</TableCell>
-                          <TableCell>${fee.amount_due.toLocaleString()}</TableCell>
-                          <TableCell>${fee.amount_paid.toLocaleString()}</TableCell>
-                          <TableCell>{fee.status}</TableCell>
-                          <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-                </TableContainer>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Academic Year</TableCell>
+                            <TableCell>Term</TableCell>
+                            <TableCell>Amount Due</TableCell>
+                            <TableCell>Amount Paid</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Due Date</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {fees.map((fee) => (
+                            <TableRow key={fee._id}>
+                              <TableCell>{fee.academic_year}</TableCell>
+                              <TableCell>{fee.term}</TableCell>
+                              <TableCell>${(fee.amount_due || 0).toLocaleString()}</TableCell>
+                              <TableCell>${(fee.amount_paid || 0).toLocaleString()}</TableCell>
+                              <TableCell>{fee.status}</TableCell>
+                              <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                )}
               </Box>
             )}
           </Paper>
@@ -519,32 +558,32 @@ const ParentDashboard: React.FC = () => {
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Academic Performance"
-            value={`${childStats.averagePerformance}%`}
-            change={childStats.performanceChange}
+            value={`${childStats.averagePerformance || 0}%`}
+            change={childStats.performanceChange || 0}
             icon={GraduationCap}
           />
         </CustomGrid>
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Fees Status"
-            value={`$${childStats.totalFees.toLocaleString()}`}
-            change={childStats.feesChange}
+            value={`$${(childStats.totalFees || 0).toLocaleString()}`}
+            change={childStats.feesChange || 0}
             icon={Receipt}
           />
         </CustomGrid>
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Attendance Rate"
-            value={`${childStats.attendanceRate}%`}
-            change={childStats.attendanceChange}
+            value={`${childStats.attendanceRate || 0}%`}
+            change={childStats.attendanceChange || 0}
             icon={Clock}
           />
         </CustomGrid>
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Class Ranking"
-            value={`#${childStats.ranking}`}
-            change={childStats.rankingChange}
+            value={`#${childStats.ranking || 0}`}
+            change={childStats.rankingChange || 0}
             icon={Award}
           />
         </CustomGrid>

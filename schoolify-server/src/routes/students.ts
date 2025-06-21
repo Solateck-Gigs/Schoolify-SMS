@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { User } from '../models/User';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireRole } from '../middleware/auth';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const students = await User.find({ role: 'student' })
-      .populate('class', 'name')
+      .populate('class', 'name gradeLevel section')
       .populate('parent', 'firstName lastName phone')
       .select('-password')
       .sort({ createdAt: -1 });
@@ -16,6 +17,64 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json(students);
   } catch (error) {
     console.error('Error fetching students:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Create new student
+router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const {
+      firstName, lastName, email, password, user_id_number,
+      admissionNumber, dateOfBirth, parentName, parentPhone,
+      address, bloodGroup, emergencyContact, classId
+    } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      $or: [
+        { email },
+        { user_id_number },
+        { admissionNumber }
+      ]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this email, ID number, or admission number already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password || 'student123', 10);
+
+    // Create student
+    const student = new User({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: 'student',
+      user_id_number,
+      admissionNumber,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      parentName,
+      parentPhone,
+      address,
+      bloodGroup,
+      emergencyContact,
+      class: classId || undefined,
+      isActive: true
+    });
+
+    await student.save();
+
+    // Return student without password
+    const studentResponse = await User.findById(student._id)
+      .populate('class', 'name gradeLevel section')
+      .select('-password');
+
+    res.status(201).json(studentResponse);
+  } catch (error) {
+    console.error('Error creating student:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

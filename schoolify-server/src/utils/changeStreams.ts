@@ -1,8 +1,5 @@
 import mongoose from 'mongoose';
 import { User } from '../models/User';
-import { Student } from '../models/Student';
-import { Teacher } from '../models/Teacher';
-import { Parent } from '../models/Parent';
 import { Admin } from '../models/Admin';
 
 export const setupChangeStreams = async () => {
@@ -30,50 +27,9 @@ export const setupChangeStreams = async () => {
       console.log('Detected new user:', change.fullDocument);
       const newUser = change.fullDocument;
       
-      // Based on the user's role, create corresponding document
+      // Only create Admin documents for admin/super_admin roles
+      // All other user data is stored directly in the User model
       switch (newUser.role) {
-        case 'student':
-          console.log('Creating student document...');
-          const student = await Student.create({
-            user: newUser._id,
-            admission_number: '', // Will be set later by admin
-            date_of_birth: new Date(),
-            gender: 'other',
-            class: null,
-            parent: null,
-            medical_conditions: [],
-            blood_type: '',
-            allergies: [],
-            special_needs: [],
-            notes: ''
-          });
-          console.log('Student document created:', student);
-          break;
-
-        case 'teacher':
-          console.log('Creating teacher document...');
-          const teacher = await Teacher.create({
-            user: newUser._id,
-            employee_id: `EMP${Math.floor(Math.random() * 10000)}`, // Temporary ID
-            date_of_hire: new Date(),
-            subjects_taught: [],
-            qualifications: [],
-            experience_years: 0
-          });
-          console.log('Teacher document created:', teacher);
-          break;
-
-        case 'parent':
-          console.log('Creating parent document...');
-          const parent = await Parent.create({
-            user: newUser._id,
-            children: [],
-            home_address: '',
-            occupation: ''
-          });
-          console.log('Parent document created:', parent);
-          break;
-
         case 'admin':
         case 'super_admin':
           console.log('Creating admin document...');
@@ -81,6 +37,12 @@ export const setupChangeStreams = async () => {
             user: newUser._id
           });
           console.log('Admin document created:', admin);
+          break;
+
+        case 'student':
+        case 'teacher':
+        case 'parent':
+          console.log(`User created with role: ${newUser.role}. All data stored in User model.`);
           break;
 
         default:

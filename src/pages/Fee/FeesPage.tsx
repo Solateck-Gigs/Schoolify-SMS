@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Search, Edit, Trash2, DollarSign } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash2, DollarSign, GraduationCap, Receipt } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
@@ -10,6 +10,7 @@ import Label from '../../components/ui/Label';
 import { useAuthStore } from '../../lib/store';
 import api from '../../services/api';
 import { toast } from 'react-hot-toast';
+import { apiFetch } from '../../lib/api';
 
 interface Fee {
   _id: string;
@@ -38,8 +39,327 @@ interface Student {
   user_id_number: string;
 }
 
+interface Child {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  admissionNumber: string;
+  user_id_number: string;
+  class: {
+    _id: string;
+    name: string;
+    gradeLevel: string;
+    section: string;
+  };
+}
+
+interface ChildFee {
+  _id: string;
+  academic_year: string;
+  term: string;
+  amount_due: number;
+  amount_paid: number;
+  status: 'paid' | 'partially_paid' | 'unpaid';
+  due_date: string;
+}
+
+// Parent Fees View Component
+const ParentFeesView: React.FC = () => {
+  const [children, setChildren] = useState<Child[]>([]);
+  const [selectedChild, setSelectedChild] = useState<string>('');
+  const [fees, setFees] = useState<ChildFee[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterTerm, setFilterTerm] = useState('');
+
+  useEffect(() => {
+    fetchChildren();
+  }, []);
+
+  useEffect(() => {
+    if (selectedChild) {
+      fetchChildFees();
+    }
+  }, [selectedChild]);
+
+  const fetchChildren = async () => {
+    try {
+      setLoading(true);
+      const childrenData = await apiFetch('/parent/children') as Child[];
+      setChildren(childrenData);
+      if (childrenData.length > 0) {
+        setSelectedChild(childrenData[0]._id);
+      }
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      toast.error('Failed to fetch children');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchChildFees = async () => {
+    try {
+      setLoading(true);
+      const feesData = await apiFetch(`/parent/child/${selectedChild}/fees`) as { fees: ChildFee[] };
+      setFees(feesData.fees || []);
+    } catch (error) {
+      console.error('Error fetching child fees:', error);
+      toast.error('Failed to fetch fee records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-green-100 text-green-800';
+      case 'partially_paid':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'unpaid':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'Paid';
+      case 'partially_paid':
+        return 'Partially Paid';
+      case 'unpaid':
+        return 'Unpaid';
+      default:
+        return status;
+    }
+  };
+
+  const filteredFees = fees.filter(fee => {
+    const matchesSearch = searchTerm ? 
+      fee.academic_year.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fee.term.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+    const matchesTerm = filterTerm ? fee.term === filterTerm : true;
+    const matchesStatus = filterStatus ? fee.status === filterStatus : true;
+    return matchesSearch && matchesTerm && matchesStatus;
+  });
+
+  const selectedChildData = children.find(child => child._id === selectedChild);
+
+  // Calculate totals
+  const totalDue = fees.reduce((sum, fee) => sum + fee.amount_due, 0);
+  const totalPaid = fees.reduce((sum, fee) => sum + fee.amount_paid, 0);
+  const totalOutstanding = totalDue - totalPaid;
+
+  if (children.length === 0 && !loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <Receipt className="h-6 w-6" />
+            Fees Information
+          </h1>
+          <p className="text-gray-600">View your children's fee information</p>
+        </div>
+
+        <Card>
+          <CardContent className="text-center py-12">
+            <GraduationCap className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-medium mb-2">Your child hasn't enrolled yet</p>
+            <p className="text-sm text-gray-500">Please contact the school administration to link your children to your account.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Receipt className="h-6 w-6" />
+          Fees Information
+        </h1>
+        <p className="text-gray-600">View your children's fee information</p>
+      </div>
+
+      {/* Child Selection */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="w-full sm:w-1/3">
+              <Select
+                label="Select Child"
+                options={[
+                  ...children.map(child => ({
+                    value: child._id,
+                    label: `${child.firstName} ${child.lastName} - ${child.class?.name || 'No Class'}`
+                  }))
+                ]}
+                value={selectedChild}
+                onChange={(e) => setSelectedChild(e.target.value)}
+                fullWidth
+              />
+            </div>
+            
+            <div className="w-full sm:w-1/3">
+              <Select
+                label="Filter by Term"
+                options={[
+                  { value: '', label: 'All Terms' },
+                  { value: 'Term 1', label: 'Term 1' },
+                  { value: 'Term 2', label: 'Term 2' },
+                  { value: 'Term 3', label: 'Term 3' },
+                  { value: 'Annual', label: 'Annual' },
+                ]}
+                value={filterTerm}
+                onChange={(e) => setFilterTerm(e.target.value)}
+                fullWidth
+              />
+            </div>
+
+            <div className="w-full sm:w-1/3">
+              <Select
+                label="Filter by Status"
+                options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'paid', label: 'Paid' },
+                  { value: 'partially_paid', label: 'Partially Paid' },
+                  { value: 'unpaid', label: 'Unpaid' },
+                ]}
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                fullWidth
+              />
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Fee Summary */}
+      {fees.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="text-2xl font-bold text-blue-600">${totalDue.toFixed(2)}</div>
+              <div className="text-sm text-gray-600">Total Fees</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</div>
+              <div className="text-sm text-gray-600">Amount Paid</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className={`text-2xl font-bold ${totalOutstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                ${totalOutstanding.toFixed(2)}
+              </div>
+              <div className="text-sm text-gray-600">Outstanding</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Fee Records */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">
+                {selectedChildData ? `${selectedChildData.firstName} ${selectedChildData.lastName}'s Fees` : 'Fee Records'}
+              </h3>
+              {selectedChildData?.class && (
+                <p className="text-sm text-gray-500">
+                  {selectedChildData.class.name} - Grade {selectedChildData.class.gradeLevel} {selectedChildData.class.section}
+                </p>
+              )}
+            </div>
+            
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Search records..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-gray-600">Loading fee records...</p>
+            </div>
+          ) : filteredFees.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No fee records found</p>
+              <p className="text-sm mt-2">
+                {fees.length === 0 ? 'No fees have been recorded yet.' : 'Try adjusting your search or filters.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Academic Year</TableHeader>
+                    <TableHeader>Term</TableHeader>
+                    <TableHeader>Amount Due</TableHeader>
+                    <TableHeader>Amount Paid</TableHeader>
+                    <TableHeader>Balance</TableHeader>
+                    <TableHeader>Due Date</TableHeader>
+                    <TableHeader>Status</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredFees.map((fee) => (
+                    <TableRow key={fee._id}>
+                      <TableCell className="font-medium">{fee.academic_year}</TableCell>
+                      <TableCell>{fee.term}</TableCell>
+                      <TableCell className="font-semibold">${fee.amount_due.toFixed(2)}</TableCell>
+                      <TableCell className="text-green-600 font-semibold">${fee.amount_paid.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">
+                        <span className={fee.amount_due - fee.amount_paid > 0 ? 'text-red-600' : 'text-green-600'}>
+                          ${(fee.amount_due - fee.amount_paid).toFixed(2)}
+                        </span>
+                      </TableCell>
+                      <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(fee.status)}`}>
+                          {getStatusText(fee.status)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 export default function FeesPage() {
   const { user } = useAuthStore();
+
+  // If user is a parent, show parent-specific fees view
+  if (user?.role === 'parent') {
+    return <ParentFeesView />;
+  }
+
+  // Original fee management interface for admins
   const [fees, setFees] = useState<Fee[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,8 +386,7 @@ export default function FeesPage() {
   });
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-  const isParent = user?.role === 'parent';
-
+  
   useEffect(() => {
     if (user) {
       fetchFees();
@@ -76,10 +395,10 @@ export default function FeesPage() {
       }
     }
   }, [user]);
-
+  
   const fetchFees = async () => {
     try {
-      setIsLoading(true);
+    setIsLoading(true);
       const { data } = await api.get('/fees');
       setFees(data);
     } catch (error) {
@@ -87,7 +406,7 @@ export default function FeesPage() {
       toast.error('Failed to fetch fees');
       setFees([]);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
 
@@ -105,8 +424,8 @@ export default function FeesPage() {
     e.preventDefault();
     if (!formData.studentId || !formData.term || !formData.amountDue || !formData.dueDate) {
       toast.error('Please fill in all required fields');
-      return;
-    }
+        return;
+      }
 
     setIsSubmitting(true);
     try {
@@ -140,7 +459,7 @@ export default function FeesPage() {
     e.preventDefault();
     if (!selectedFee || !paymentData.amountPaid) {
       toast.error('Please enter payment amount');
-      return;
+       return;
     }
 
     setIsSubmitting(true);
@@ -249,14 +568,14 @@ export default function FeesPage() {
         return status;
     }
   };
-
+  
   const filteredFees = fees.filter(fee => {
     const matchesSearch = searchTerm
       ? `${fee.student.firstName} ${fee.student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fee.student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fee.student.user_id_number.toLowerCase().includes(searchTerm.toLowerCase())
       : true;
-
+    
     const matchesTerm = filterTerm ? fee.term === filterTerm : true;
     const matchesStatus = filterStatus ? fee.status === filterStatus : true;
 
@@ -270,14 +589,14 @@ export default function FeesPage() {
     { value: 'Term 3', label: 'Term 3' },
     { value: 'Annual', label: 'Annual' },
   ];
-
+  
   const statusOptions = [
     { value: '', label: 'All Status' },
     { value: 'paid', label: 'Paid' },
     { value: 'partially_paid', label: 'Partially Paid' },
     { value: 'unpaid', label: 'Unpaid' },
   ];
-
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -285,7 +604,7 @@ export default function FeesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Fees Management</h1>
           <p className="text-gray-600">
-            {isParent ? "View your children's fee information" : "Manage student fee records and payments"}
+            {isAdmin ? "Manage student fee records and payments" : "Manage student fee records and payments"}
           </p>
         </div>
         
@@ -300,7 +619,7 @@ export default function FeesPage() {
           </Button>
         )}
       </div>
-
+      
       {/* Filters and Search */}
       <Card>
         <CardHeader>
@@ -335,7 +654,7 @@ export default function FeesPage() {
             </div>
           </div>
         </CardHeader>
-
+        
         {/* Table */}
         <CardContent>
           {isLoading ? (
@@ -344,9 +663,9 @@ export default function FeesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <TableHead>
-                  <TableRow>
+            <Table>
+              <TableHead>
+                <TableRow>
                     <TableHeader>Student</TableHeader>
                     <TableHeader>Student ID</TableHeader>
                     <TableHeader>Academic Year</TableHeader>
@@ -354,12 +673,12 @@ export default function FeesPage() {
                     <TableHeader>Amount Due</TableHeader>
                     <TableHeader>Amount Paid</TableHeader>
                     <TableHeader>Balance</TableHeader>
-                    <TableHeader>Due Date</TableHeader>
-                    <TableHeader>Status</TableHeader>
+                  <TableHeader>Due Date</TableHeader>
+                  <TableHeader>Status</TableHeader>
                     {isAdmin && <TableHeader className="text-right">Actions</TableHeader>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                   {filteredFees.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8 text-gray-500">
@@ -372,7 +691,7 @@ export default function FeesPage() {
                         <TableCell className="font-medium">
                           {fee.student.firstName} {fee.student.lastName}
                         </TableCell>
-                        <TableCell>
+                      <TableCell>
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                             {fee.student.user_id_number}
                           </span>
@@ -384,10 +703,10 @@ export default function FeesPage() {
                         <TableCell className="font-semibold">
                           <span className={fee.amountDue - fee.amountPaid > 0 ? 'text-red-600' : 'text-green-600'}>
                             ${(fee.amountDue - fee.amountPaid).toFixed(2)}
-                          </span>
-                        </TableCell>
+                        </span>
+                      </TableCell>
                         <TableCell>{new Date(fee.dueDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
+                      <TableCell>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(fee.status)}`}>
                             {getStatusText(fee.status)}
                           </span>
@@ -411,7 +730,7 @@ export default function FeesPage() {
                                 onClick={() => openEditModal(fee)}
                               >
                                 <Edit className="h-4 w-4" />
-                              </Button>
+                                </Button>
                               <Button
                                 variant="danger"
                                 size="sm"
@@ -419,19 +738,19 @@ export default function FeesPage() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                            </div>
+                          </div>
                           </TableCell>
                         )}
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
             </div>
           )}
         </CardContent>
       </Card>
-
+      
       {/* Add Fee Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="max-w-2xl">
@@ -703,4 +1022,4 @@ export default function FeesPage() {
       </Dialog>
     </div>
   );
-} 
+}

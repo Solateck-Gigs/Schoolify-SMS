@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { Parent } from '../models/Parent';
-import { Student } from '../models/Student';
+import { User } from '../models/User';
 import { Mark } from '../models/Mark';
 import { Attendance } from '../models/Attendance';
 import { Fee } from '../models/Fee';
@@ -11,7 +10,7 @@ export const getChildren = async (req: Request, res: Response) => {
   try {
     const parentId = req.user!._id;
 
-    const parent = await Parent.findOne({ user: parentId })
+    const parent = await User.findById(parentId)
       .populate({
         path: 'children',
         populate: {
@@ -20,7 +19,7 @@ export const getChildren = async (req: Request, res: Response) => {
         }
       });
 
-    if (!parent) {
+    if (!parent || parent.role !== 'parent') {
       return res.status(404).json({ error: 'Parent not found' });
     }
 
@@ -38,8 +37,8 @@ export const getChildPerformance = async (req: Request, res: Response) => {
     const parentId = req.user!._id;
 
     // Verify this is parent's child
-    const parent = await Parent.findOne({ user: parentId });
-    if (!parent || !parent.children.includes(new mongoose.Types.ObjectId(childId))) {
+    const parent = await User.findById(parentId);
+    if (!parent || parent.role !== 'parent' || !parent.children?.includes(new mongoose.Types.ObjectId(childId))) {
       return res.status(403).json({ error: 'Not authorized to view this child\'s performance' });
     }
 
@@ -102,8 +101,8 @@ export const getChildAttendance = async (req: Request, res: Response) => {
     const parentId = req.user!._id;
 
     // Verify this is parent's child
-    const parent = await Parent.findOne({ user: parentId });
-    if (!parent || !parent.children.includes(new mongoose.Types.ObjectId(childId))) {
+    const parent = await User.findById(parentId);
+    if (!parent || parent.role !== 'parent' || !parent.children?.includes(new mongoose.Types.ObjectId(childId))) {
       return res.status(403).json({ error: 'Not authorized to view this child\'s attendance' });
     }
 
@@ -168,8 +167,8 @@ export const getChildFees = async (req: Request, res: Response) => {
     const parentId = req.user!._id;
 
     // Verify this is parent's child
-    const parent = await Parent.findOne({ user: parentId });
-    if (!parent || !parent.children.includes(new mongoose.Types.ObjectId(childId))) {
+    const parent = await User.findById(parentId);
+    if (!parent || parent.role !== 'parent' || !parent.children?.includes(new mongoose.Types.ObjectId(childId))) {
       return res.status(403).json({ error: 'Not authorized to view this child\'s fees' });
     }
 

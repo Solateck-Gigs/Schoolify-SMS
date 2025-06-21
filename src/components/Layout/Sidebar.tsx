@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   HelpCircle,
   Bell,
-  X
+  X,
+  UserPlus
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 
@@ -52,6 +53,22 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
   
   // Define navigation items based on user role
   const getNavItems = () => {
+    const superAdminItems = [
+      { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
+      { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
+      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
+      { to: '/parents', icon: <Users size={20} />, label: 'Parents' },
+      { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
+      { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
+      { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
+      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' }
+    ];
+    
     const adminItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
@@ -64,7 +81,7 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
       { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
-      { to: '/create-users', icon: <Users size={20} />, label: 'Create Users' }
+      { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' }
     ];
     
     const teacherItems = [
@@ -79,30 +96,13 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
     
     const parentItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
-      { to: '/children', icon: <GraduationCap size={20} />, label: 'My Children' },
+      { to: '/my-children', icon: <GraduationCap size={20} />, label: 'My Children' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
-    ];
-    
-    const superAdminItems = [
-      { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
-      { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
-      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
-      { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
-      { to: '/parents', icon: <Users size={20} />, label: 'Parents' },
-      { to: '/children', icon: <GraduationCap size={20} />, label: 'My Children' },
-      { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
-      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
-      { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
-      { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
-      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
-      { to: '/create-users', icon: <Users size={20} />, label: 'Create Users' }
     ];
     
     switch (user?.role) {
@@ -161,7 +161,7 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
-              <p className="text-xs text-blue-200 capitalize">{user?.role}</p>
+              <p className="text-xs text-blue-200 capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </div>
         </div>

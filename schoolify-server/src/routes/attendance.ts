@@ -23,8 +23,8 @@ router.get('/class/:classId', authenticateToken, requireRole(['admin', 'super_ad
 
     // Authorization check - admin can view all, teacher can only view their assigned classes
     if (user.role === 'teacher') {
-      const teacherUser = await User.findById(user._id);
-      if (!teacherUser?.assignedClasses?.includes(new Types.ObjectId(classId))) {
+      // Check if this teacher is assigned to this class
+      if (classData.teacher?.toString() !== user._id.toString()) {
         return res.status(403).json({ error: 'Not authorized to view attendance for this class' });
       }
     }
@@ -65,8 +65,8 @@ router.get('/class/:classId/students', authenticateToken, requireRole(['admin', 
 
     // Authorization check - admin can view all, teacher can only view their assigned classes
     if (user.role === 'teacher') {
-      const teacherUser = await User.findById(user._id);
-      if (!teacherUser?.assignedClasses?.includes(new Types.ObjectId(classId))) {
+      // Check if this teacher is assigned to this class
+      if (classData.teacher?.toString() !== user._id.toString()) {
         return res.status(403).json({ error: 'Not authorized to view students for this class' });
       }
     }
@@ -169,26 +169,37 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
     const { user } = req as AuthRequest;
     const { classId, date, attendanceRecords } = req.body;
 
+    console.log('Attendance marking request:', { classId, date, attendanceRecordsCount: attendanceRecords?.length });
+
     // Validate input
     if (!classId || !date || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
+      console.log('Invalid input data:', { classId, date, attendanceRecords });
       return res.status(400).json({ error: 'Invalid input data' });
+    }
+
+    // Validate date format
+    const attendanceDate = new Date(date);
+    if (isNaN(attendanceDate.getTime())) {
+      console.log('Invalid date format:', date);
+      return res.status(400).json({ error: 'Invalid date format' });
     }
 
     // Check if class exists
     const classData = await Class.findById(classId);
     if (!classData) {
+      console.log('Class not found:', classId);
       return res.status(404).json({ error: 'Class not found' });
     }
 
     // Authorization check - admin can mark all, teacher can only mark their assigned classes
     if (user.role === 'teacher') {
-      const teacherUser = await User.findById(user._id);
-      if (!teacherUser?.assignedClasses?.includes(new Types.ObjectId(classId))) {
+      // Check if this teacher is assigned to this class
+      if (classData.teacher?.toString() !== user._id.toString()) {
+        console.log('Teacher not authorized for class:', { teacherId: user._id, classTeacher: classData.teacher });
         return res.status(403).json({ error: 'Not authorized to mark attendance for this class' });
       }
     }
 
-    const attendanceDate = new Date(date);
     const academicYear = attendanceDate.getFullYear().toString();
     const month = attendanceDate.getMonth() + 1;
     
@@ -198,40 +209,58 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
     else if (month >= 1 && month <= 4) term = 'Term 2';
     else term = 'Term 3';
 
+    console.log('Processing attendance for:', { academicYear, term, recordsCount: attendanceRecords.length });
+
     // Create or update attendance records
     const attendancePromises = attendanceRecords.map(async (record: any) => {
-      const existingAttendance = await Attendance.findOne({
-        student: record.studentId,
-        class: classId,
-        date: {
-          $gte: new Date(attendanceDate.setHours(0, 0, 0, 0)),
-          $lt: new Date(attendanceDate.setHours(23, 59, 59, 999))
+      try {
+        // Validate record structure
+        if (!record.studentId || !record.status) {
+          console.log('Invalid attendance record:', record);
+          throw new Error('Invalid attendance record structure');
         }
-      });
 
-      if (existingAttendance) {
-        // Update existing record
-        existingAttendance.status = record.status;
-        existingAttendance.reason = record.reason;
-        existingAttendance.marked_by = user._id;
-        return existingAttendance.save();
-      } else {
-        // Create new record
-        const attendance = new Attendance({
+        // Create a fresh date object for each iteration to avoid mutation
+        const searchDate = new Date(date);
+        
+        const existingAttendance = await Attendance.findOne({
           student: record.studentId,
           class: classId,
-          date: attendanceDate,
-          status: record.status,
-          academic_year: academicYear,
-          term,
-          marked_by: user._id,
-          reason: record.reason
+          date: {
+            $gte: new Date(searchDate.setHours(0, 0, 0, 0)),
+            $lt: new Date(searchDate.setHours(23, 59, 59, 999))
+          }
         });
-        return attendance.save();
+
+        if (existingAttendance) {
+          // Update existing record
+          existingAttendance.status = record.status;
+          existingAttendance.reason = record.reason;
+          existingAttendance.marked_by = user._id;
+          return existingAttendance.save();
+        } else {
+          // Create new record with a fresh date object
+          const recordDate = new Date(date);
+          const attendance = new Attendance({
+            student: record.studentId,
+            class: classId,
+            date: recordDate,
+            status: record.status,
+            academic_year: academicYear,
+            term,
+            marked_by: user._id,
+            reason: record.reason
+          });
+          return attendance.save();
+        }
+      } catch (recordError) {
+        console.error('Error processing individual attendance record:', recordError);
+        throw recordError;
       }
     });
 
     await Promise.all(attendancePromises);
+    console.log('Attendance marked successfully');
     res.status(201).json({ message: 'Attendance marked successfully' });
   } catch (error) {
     console.error('Error marking attendance:', error);
@@ -357,6 +386,8 @@ router.get('/summary', authenticateToken, requireRole(['admin', 'super_admin', '
   try {
     const { user } = req as AuthRequest;
 
+    console.log('Fetching attendance summary for user:', { userId: user._id, role: user.role });
+
     // Build aggregation pipeline
     const pipeline: any[] = [
       {
@@ -421,20 +452,30 @@ router.get('/summary', authenticateToken, requireRole(['admin', 'super_admin', '
 
     // If user is a teacher, filter to only their assigned classes
     if (user.role === 'teacher') {
-      const teacherUser = await User.findById(user._id);
-      if (teacherUser?.assignedClasses && teacherUser.assignedClasses.length > 0) {
+      // Find classes where this teacher is assigned
+      const teacherClasses = await Class.find({ teacher: user._id }).select('_id');
+      const teacherClassIds = teacherClasses.map(cls => cls._id);
+      
+      console.log('Teacher assigned classes:', teacherClassIds);
+      
+      if (teacherClassIds.length > 0) {
         pipeline.unshift({
           $match: {
-            class: { $in: teacherUser.assignedClasses }
+            class: { $in: teacherClassIds }
           }
         });
       } else {
         // Teacher has no assigned classes
+        console.log('Teacher has no assigned classes');
         return res.json([]);
       }
     }
 
+    console.log('Aggregation pipeline:', JSON.stringify(pipeline, null, 2));
+
     const summaryData = await Attendance.aggregate(pipeline);
+    console.log('Summary data result:', summaryData.length, 'records');
+    
     res.json(summaryData);
   } catch (error) {
     console.error('Error fetching attendance summary:', error);
@@ -460,8 +501,8 @@ router.get('/details', authenticateToken, requireRole(['admin', 'super_admin', '
 
     // Authorization check - admin can view all, teacher can only view their assigned classes
     if (user.role === 'teacher') {
-      const teacherUser = await User.findById(user._id);
-      if (!teacherUser?.assignedClasses?.includes(new Types.ObjectId(classId as string))) {
+      // Check if this teacher is assigned to this class
+      if (classData.teacher?.toString() !== user._id.toString()) {
         return res.status(403).json({ error: 'Not authorized to view attendance details for this class' });
       }
     }

@@ -266,4 +266,30 @@ router.get('/class/:classId', authenticateToken, async (req: Request, res: Respo
   }
 });
 
+// TEMPORARY: Clear all fees for a student (for testing purposes only)
+router.delete('/clear-student/:studentId', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
+  try {
+    const { studentId } = req.params;
+
+    // Find the student first
+    const student = await User.findOne({ _id: studentId, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Delete all fees for this student
+    const result = await Fee.deleteMany({ student: studentId });
+    
+    console.log(`Cleared ${result.deletedCount} fee records for student: ${student.firstName} ${student.lastName}`);
+    
+    res.json({ 
+      message: `Successfully cleared ${result.deletedCount} fee records for ${student.firstName} ${student.lastName}`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error clearing student fees:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router; 

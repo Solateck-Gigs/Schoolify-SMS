@@ -4,6 +4,7 @@ import { IUser } from './User';
 export interface IClass extends Document {
   name: string;
   section: string;
+  gradeLevel: string;
   academicYear: string;
   teacher?: mongoose.Types.ObjectId | IUser;
   capacity: number;
@@ -19,6 +20,11 @@ const classSchema = new Schema<IClass>({
     trim: true
   },
   section: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  gradeLevel: {
     type: String,
     required: true,
     trim: true

@@ -6,7 +6,7 @@ import Select from '../../components/ui/Select';
 import Input from '../../components/ui/Input';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../../components/ui/Table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
-import { Search, Calendar, Users, Eye } from 'lucide-react';
+import { Search, Calendar, Users, Eye, GraduationCap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiFetch } from '../../lib/api';
 
@@ -76,8 +76,260 @@ interface AttendanceSummary {
   attendanceRate: number;
 }
 
+interface Child {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  admissionNumber: string;
+  user_id_number: string;
+  class: {
+    _id: string;
+    name: string;
+    gradeLevel: string;
+    section: string;
+  };
+}
+
+interface ChildAttendanceRecord {
+  _id: string;
+  date: string;
+  status: 'present' | 'absent' | 'late';
+  reason?: string;
+  class: {
+    name: string;
+    gradeLevel: string;
+    section: string;
+  };
+}
+
+// Parent Attendance View Component
+const ParentAttendanceView: React.FC = () => {
+  const [children, setChildren] = useState<Child[]>([]);
+  const [selectedChild, setSelectedChild] = useState<string>('');
+  const [attendanceRecords, setAttendanceRecords] = useState<ChildAttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
+  useEffect(() => {
+    fetchChildren();
+  }, []);
+
+  useEffect(() => {
+    if (selectedChild) {
+      fetchChildAttendance();
+    }
+  }, [selectedChild]);
+
+  const fetchChildren = async () => {
+    try {
+      setLoading(true);
+      const childrenData = await apiFetch('/parent/children') as Child[];
+      setChildren(childrenData);
+      if (childrenData.length > 0) {
+        setSelectedChild(childrenData[0]._id);
+      }
+    } catch (error) {
+      console.error('Error fetching children:', error);
+      toast.error('Failed to fetch children');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchChildAttendance = async () => {
+    try {
+      setLoading(true);
+      const attendanceData = await apiFetch(`/parent/child/${selectedChild}/attendance`) as { attendance: ChildAttendanceRecord[] };
+      setAttendanceRecords(attendanceData.attendance || []);
+    } catch (error) {
+      console.error('Error fetching child attendance:', error);
+      toast.error('Failed to fetch attendance records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'present':
+        return 'bg-green-100 text-green-800';
+      case 'absent':
+        return 'bg-red-100 text-red-800';
+      case 'late':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const filteredRecords = attendanceRecords.filter(record => {
+    const matchesDate = filterDate ? record.date.includes(filterDate) : true;
+    const matchesSearch = searchTerm ? 
+      record.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.class.name.toLowerCase().includes(searchTerm.toLowerCase()) : true;
+    return matchesDate && matchesSearch;
+  });
+
+  const selectedChildData = children.find(child => child._id === selectedChild);
+
+  if (children.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <Calendar className="h-6 w-6" />
+            Attendance History
+          </h1>
+          <p className="text-gray-600">View your children's attendance records</p>
+        </div>
+
+        <Card>
+          <CardContent className="text-center py-12">
+            <GraduationCap className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg font-medium mb-2">Your child hasn't enrolled yet</p>
+            <p className="text-sm text-gray-500">Please contact the school administration to link your children to your account.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Calendar className="h-6 w-6" />
+          Attendance History
+        </h1>
+        <p className="text-gray-600">View your children's attendance records</p>
+      </div>
+
+      {/* Child Selection */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="w-full sm:w-1/2">
+              <Select
+                label="Select Child"
+                options={[
+                  ...children.map(child => ({
+                    value: child._id,
+                    label: `${child.firstName} ${child.lastName} - ${child.class?.name || 'No Class'}`
+                  }))
+                ]}
+                value={selectedChild}
+                onChange={(e) => setSelectedChild(e.target.value)}
+                fullWidth
+              />
+            </div>
+            
+            <div className="w-full sm:w-1/2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Date
+              </label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Attendance Records */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">
+                {selectedChildData ? `${selectedChildData.firstName} ${selectedChildData.lastName}'s Attendance` : 'Attendance Records'}
+              </h3>
+              {selectedChildData?.class && (
+                <p className="text-sm text-gray-500">
+                  {selectedChildData.class.name} - Grade {selectedChildData.class.gradeLevel} {selectedChildData.class.section}
+                </p>
+              )}
+            </div>
+            
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Search records..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-gray-600">Loading attendance records...</p>
+            </div>
+          ) : filteredRecords.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No attendance records found</p>
+              <p className="text-sm mt-2">
+                {attendanceRecords.length === 0 ? 'No attendance has been recorded yet.' : 'Try adjusting your search or date filter.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Date</TableHeader>
+                    <TableHeader>Class</TableHeader>
+                    <TableHeader>Status</TableHeader>
+                    <TableHeader>Reason</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredRecords.map((record) => (
+                    <TableRow key={record._id}>
+                      <TableCell className="font-medium">
+                        {new Date(record.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        {record.class.name} - Grade {record.class.gradeLevel} {record.class.section}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(record.status)}`}>
+                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {record.reason || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 export default function AttendancePage() {
   const { user } = useAuthStore();
+
+  // If user is a parent, show parent-specific attendance view
+  if (user?.role === 'parent') {
+    return <ParentAttendanceView />;
+  }
+
+  // Original attendance management interface for teachers/admins
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -111,19 +363,15 @@ export default function AttendancePage() {
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const classesData = await apiFetch('/classes') as Class[];
+      
+      // Teachers should fetch their assigned classes, admins fetch all classes
+      const endpoint = user?.role === 'teacher' ? '/teachers/classes' : '/classes';
+      const classesData = await apiFetch(endpoint) as Class[];
       setClasses(classesData);
       
-      // If user is a teacher, filter to only their assigned classes
-      if (user?.role === 'teacher') {
-        const teacherClasses = classesData.filter(cls => 
-          cls.teacher?._id === user._id
-        );
-        setClasses(teacherClasses);
-        // Auto-select first class if teacher has only one
-        if (teacherClasses.length === 1) {
-          setSelectedClass(teacherClasses[0]._id);
-        }
+      // If user is a teacher and has only one class, auto-select it
+      if (user?.role === 'teacher' && classesData.length === 1) {
+        setSelectedClass(classesData[0]._id);
       }
     } catch (error) {
       console.error('Error fetching classes:', error);
@@ -149,7 +397,9 @@ export default function AttendancePage() {
   const fetchAttendanceHistory = async () => {
     try {
       setHistoryLoading(true);
+      console.log('Fetching attendance history...');
       const historyData = await apiFetch('/attendance/summary') as AttendanceSummary[];
+      console.log('Attendance history data:', historyData);
       setAttendanceHistory(historyData);
     } catch (error) {
       console.error('Error fetching attendance history:', error);
@@ -211,11 +461,11 @@ export default function AttendancePage() {
 
       await apiFetch('/attendance/mark', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           classId: selectedClass,
           date: selectedDate,
           attendanceRecords
-        }),
+        },
       });
 
       toast.success(`Attendance saved successfully for ${attendanceRecords.length} students`);
