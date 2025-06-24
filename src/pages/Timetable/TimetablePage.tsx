@@ -1,27 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, BookOpen } from 'lucide-react';
+import { Calendar, Clock, Users, BookOpen, Plus } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
+import Input from '../../components/ui/Input';
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/Dialog';
 import { useAuthStore } from '../../lib/store';
+import api from '../../services/api';
+
+interface TimetableEntry {
+  _id: string;
+  class: {
+    _id: string;
+    name: string;
+    section: string;
+    gradeLevel: string;
+  };
+  subject: string;
+  teacher: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  };
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+}
+
+interface Teacher {
+  _id: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface Class {
+  _id: string;
+  name: string;
+  section: string;
+  gradeLevel: string;
+}
 
 export default function TimetablePage() {
   const { user } = useAuthStore();
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay() || 1);
-  
-  // Simulated class options - would come from the database in a real app
-  const classOptions = Array.from({ length: 12 }, (_, i) => ({
-    value: (i + 1).toString(),
-    label: `Class ${i + 1}`,
-  }));
-  
-  const sectionOptions = [
-    { value: 'A', label: 'Section A' },
-    { value: 'B', label: 'Section B' },
-    { value: 'C', label: 'Section C' },
-  ];
+  const [timetableData, setTimetableData] = useState<TimetableEntry[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state for creating new timetable entry
+  const [newEntry, setNewEntry] = useState({
+    class: '',
+    subject: '',
+    teacher: '',
+    dayOfWeek: 1,
+    startTime: '',
+    endTime: '',
+    room: '',
+    academicYear: new Date().getFullYear().toString(),
+    term: 'Term 1'
+  });
   
   const dayOptions = [
     { value: '1', label: 'Monday' },
@@ -30,67 +72,145 @@ export default function TimetablePage() {
     { value: '4', label: 'Thursday' },
     { value: '5', label: 'Friday' },
   ];
-  
-  // Mock timetable data - In a real app, this would be fetched from Supabase
-  const timetableData = {
-    periods: [
-      { id: 1, startTime: '08:00', endTime: '08:45' },
-      { id: 2, startTime: '08:50', endTime: '09:35' },
-      { id: 3, startTime: '09:40', endTime: '10:25' },
-      { id: 4, startTime: '10:40', endTime: '11:25' },
-      { id: 5, startTime: '11:30', endTime: '12:15' },
-      { id: 6, startTime: '13:00', endTime: '13:45' },
-      { id: 7, startTime: '13:50', endTime: '14:35' },
-      { id: 8, startTime: '14:40', endTime: '15:25' },
-    ],
-    schedule: {
-      '5-A-1': [
-        { period: 1, subject: 'Mathematics', teacher: 'Mr. Johnson' },
-        { period: 2, subject: 'Science', teacher: 'Mrs. Smith' },
-        { period: 3, subject: 'English', teacher: 'Ms. Williams' },
-        { period: 4, subject: 'Social Studies', teacher: 'Mr. Davis' },
-        { period: 5, subject: 'Art', teacher: 'Mrs. Wilson' },
-        { period: 6, subject: 'Physical Education', teacher: 'Mr. Brown' },
-        { period: 7, subject: 'Music', teacher: 'Ms. Miller' },
-        { period: 8, subject: 'Computer Science', teacher: 'Mr. Taylor' },
-      ],
-      '5-A-2': [
-        { period: 1, subject: 'Science', teacher: 'Mrs. Smith' },
-        { period: 2, subject: 'Mathematics', teacher: 'Mr. Johnson' },
-        { period: 3, subject: 'Art', teacher: 'Mrs. Wilson' },
-        { period: 4, subject: 'English', teacher: 'Ms. Williams' },
-        { period: 5, subject: 'Computer Science', teacher: 'Mr. Taylor' },
-        { period: 6, subject: 'Social Studies', teacher: 'Mr. Davis' },
-        { period: 7, subject: 'Physical Education', teacher: 'Mr. Brown' },
-        { period: 8, subject: 'Music', teacher: 'Ms. Miller' },
-      ],
+
+  useEffect(() => {
+    // Fetch classes
+    const fetchClasses = async () => {
+      try {
+        const response = await api.get('/classes');
+        setClasses(response.data);
+        if (response.data.length > 0) {
+          setSelectedClass(response.data[0]._id);
+        }
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+        setError('Failed to fetch classes');
+      }
+    };
+
+    // Fetch teachers
+    const fetchTeachers = async () => {
+      try {
+        const response = await api.get('/teachers');
+        setTeachers(response.data);
+      } catch (err) {
+        console.error('Error fetching teachers:', err);
+        setError('Failed to fetch teachers');
+      }
+    };
+
+    fetchClasses();
+    fetchTeachers();
+  }, []);
+
+  useEffect(() => {
+    const fetchTimetable = async () => {
+      if (!selectedClass) return;
+      
+      setLoading(true);
+      try {
+        const response = await api.get(`/timetable/class/${selectedClass}`);
+        setTimetableData(response.data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching timetable:', err);
+        setError('Failed to fetch timetable');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTimetable();
+  }, [selectedClass]);
+
+  const handleCreateEntry = async () => {
+    try {
+      // Validate required fields
+      const requiredFields = {
+        class: 'Class',
+        subject: 'Subject',
+        teacher: 'Teacher',
+        dayOfWeek: 'Day',
+        startTime: 'Start Time',
+        endTime: 'End Time',
+        room: 'Room'
+      };
+
+      const missingFields = Object.entries(requiredFields).reduce((acc: string[], [key, label]) => {
+        if (!newEntry[key as keyof typeof newEntry]) {
+          acc.push(label);
+        }
+        return acc;
+      }, []);
+
+      if (missingFields.length > 0) {
+        setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      // Convert time format from "HH:mm" input to "HH:mm" 24-hour format
+      const formatTime = (timeStr: string) => {
+        if (!timeStr) return '';
+        return timeStr; // Time input already returns in 24-hour format
+      };
+
+      const payload = {
+        ...newEntry,
+        startTime: formatTime(newEntry.startTime),
+        endTime: formatTime(newEntry.endTime),
+        dayOfWeek: parseInt(newEntry.dayOfWeek.toString())
+      };
+
+      console.log('Creating timetable entry with payload:', payload);
+
+      const response = await api.post('/timetable', payload);
+      console.log('Server response:', response.data);
+      
+      // Refresh timetable data
+      const timetableResponse = await api.get(`/timetable/class/${selectedClass}`);
+      setTimetableData(timetableResponse.data);
+      setIsCreateModalOpen(false);
+      
+      // Reset form
+      setNewEntry({
+        class: '',
+        subject: '',
+        teacher: '',
+        dayOfWeek: 1,
+        startTime: '',
+        endTime: '',
+        room: '',
+        academicYear: new Date().getFullYear().toString(),
+        term: 'Term 1'
+      });
+      
+      setError(null);
+    } catch (err: any) {
+      console.error('Error creating timetable entry:', err);
+      console.error('Error details:', err.response?.data);
+
+      // Handle different error types
+      const errorData = err.response?.data;
+      if (errorData?.error === 'Time conflict detected') {
+        const conflict = errorData.details.conflictingEntry;
+        setError(
+          `Time conflict detected with existing schedule:\n` +
+          `Class: ${conflict.class.name} ${conflict.class.section}\n` +
+          `Teacher: ${conflict.teacher.firstName} ${conflict.teacher.lastName}\n` +
+          `Time: ${conflict.startTime} - ${conflict.endTime}\n` +
+          `Room: ${conflict.room}`
+        );
+      } else if (errorData?.error === 'Validation error') {
+        setError(`Validation error: ${Object.values(errorData.details).join(', ')}`);
+      } else if (errorData?.error === 'Missing required fields') {
+        setError(`Missing fields: ${Object.values(errorData.details).filter(Boolean).join(', ')}`);
+      } else {
+        setError(errorData?.error || 'Failed to create timetable entry');
+      }
     }
   };
-  
-  // Set initial class and section based on user role
-  useEffect(() => {
-    if (user?.role === 'teacher') {
-      // For teachers, we'd fetch their assigned classes
-      setSelectedClass('5');
-      setSelectedSection('A');
-    } else if (user?.role === 'parent') {
-      // For parents, we'd fetch their children's classes
-      setSelectedClass('5');
-      setSelectedSection('A');
-    } else {
-      // For admin, default to first class
-      setSelectedClass('5');
-      setSelectedSection('A');
-    }
-  }, [user]);
-  
-  const timetableKey = selectedClass && selectedSection && selectedDay 
-    ? `${selectedClass}-${selectedSection}-${selectedDay}` 
-    : null;
-  
-  const currentTimetable = timetableKey && timetableData.schedule[timetableKey as keyof typeof timetableData.schedule] 
-    ? timetableData.schedule[timetableKey as keyof typeof timetableData.schedule] 
-    : timetableData.schedule['5-A-1']; // Default to class 5-A Monday as fallback
+
+  const currentTimetable = timetableData.filter(entry => entry.dayOfWeek === selectedDay);
   
   return (
     <div className="space-y-6">
@@ -100,9 +220,13 @@ export default function TimetablePage() {
           <p className="text-gray-600">View and manage class schedules</p>
         </div>
         
-        {user?.role === 'admin' && (
-          <Button variant="primary">
-            Edit Timetable
+        {(user?.role === 'admin' || user?.role === 'super_admin') && (
+          <Button
+            variant="primary"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus size={16} className="mr-2" />
+            Add Timetable Entry
           </Button>
         )}
       </div>
@@ -110,27 +234,20 @@ export default function TimetablePage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="w-full sm:w-1/3">
+            <div className="w-full sm:w-1/2">
               <Select
                 label="Class"
-                options={classOptions}
+                options={classes.map(c => ({
+                  value: c._id,
+                  label: `${c.name} - ${c.section}`
+                }))}
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
                 fullWidth
               />
             </div>
             
-            <div className="w-full sm:w-1/3">
-              <Select
-                label="Section"
-                options={sectionOptions}
-                value={selectedSection}
-                onChange={(e) => setSelectedSection(e.target.value)}
-                fullWidth
-              />
-            </div>
-            
-            <div className="w-full sm:w-1/3">
+            <div className="w-full sm:w-1/2">
               <Select
                 label="Day"
                 options={dayOptions}
@@ -143,64 +260,169 @@ export default function TimetablePage() {
         </CardHeader>
         
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 border">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
-                    Period
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
-                    Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
-                    Subject
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Teacher
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentTimetable.map((item, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r">
-                      Period {item.period}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 border-r">
-                      <div className="flex items-center">
-                        <Clock size={16} className="mr-2 text-gray-400" />
-                        {timetableData.periods[item.period - 1].startTime} - {timetableData.periods[item.period - 1].endTime}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 border-r">
-                      <div className="flex items-center">
-                        <BookOpen size={16} className="mr-2 text-blue-500" />
-                        {item.subject}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Users size={16} className="mr-2 text-teal-500" />
-                        {item.teacher}
-                      </div>
-                    </td>
+          {loading ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : error ? (
+            <div className="text-center text-red-500 py-4">{error}</div>
+          ) : currentTimetable.length === 0 ? (
+            <div className="text-center text-gray-500 py-4">No timetable entries for this day</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                      Time
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                      Subject
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                      Teacher
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Room
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="mt-6 text-center">
-            <Button
-              variant="outline"
-              leftIcon={<Calendar size={16} />}
-            >
-              Download Full Schedule
-            </Button>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {currentTimetable.map((item, index) => (
+                    <tr key={item._id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="px-6 py-4 text-sm text-gray-500 border-r">
+                        <div className="flex items-center">
+                          <Clock size={16} className="mr-2 text-gray-400" />
+                          {item.startTime} - {item.endTime}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 border-r">
+                        <div className="flex items-center">
+                          <BookOpen size={16} className="mr-2 text-blue-500" />
+                          {item.subject}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 border-r">
+                        <div className="flex items-center">
+                          <Users size={16} className="mr-2 text-teal-500" />
+                          {item.teacher.firstName} {item.teacher.lastName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {item.room}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Create Timetable Entry Modal */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Timetable Entry</DialogTitle>
+            <DialogDescription>
+              Add a new class schedule to the timetable. Make sure there are no time conflicts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select
+              label="Class"
+              options={classes.map(c => ({
+                value: c._id,
+                label: `${c.name} - ${c.section}`
+              }))}
+              value={newEntry.class}
+              onChange={(e) => setNewEntry({ ...newEntry, class: e.target.value })}
+              fullWidth
+            />
+
+            <Input
+              label="Subject"
+              value={newEntry.subject}
+              onChange={(e) => setNewEntry({ ...newEntry, subject: e.target.value })}
+              fullWidth
+            />
+
+            <Select
+              label="Teacher"
+              options={teachers.map(t => ({
+                value: t._id,
+                label: `${t.firstName} ${t.lastName}`
+              }))}
+              value={newEntry.teacher}
+              onChange={(e) => setNewEntry({ ...newEntry, teacher: e.target.value })}
+              fullWidth
+            />
+
+            <Select
+              label="Day"
+              options={dayOptions}
+              value={newEntry.dayOfWeek.toString()}
+              onChange={(e) => setNewEntry({ ...newEntry, dayOfWeek: parseInt(e.target.value) })}
+              fullWidth
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Start Time"
+                type="time"
+                value={newEntry.startTime}
+                onChange={(e) => setNewEntry({ ...newEntry, startTime: e.target.value })}
+                fullWidth
+              />
+
+              <Input
+                label="End Time"
+                type="time"
+                value={newEntry.endTime}
+                onChange={(e) => setNewEntry({ ...newEntry, endTime: e.target.value })}
+                fullWidth
+              />
+            </div>
+
+            <Input
+              label="Room"
+              value={newEntry.room}
+              onChange={(e) => setNewEntry({ ...newEntry, room: e.target.value })}
+              fullWidth
+            />
+
+            <Select
+              label="Term"
+              options={[
+                { value: 'Term 1', label: 'Term 1' },
+                { value: 'Term 2', label: 'Term 2' },
+                { value: 'Term 3', label: 'Term 3' }
+              ]}
+              value={newEntry.term}
+              onChange={(e) => setNewEntry({ ...newEntry, term: e.target.value })}
+              fullWidth
+            />
+
+            {error && (
+              <div className="text-red-500 text-sm">{error}</div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsCreateModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleCreateEntry}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

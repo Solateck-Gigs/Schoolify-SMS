@@ -13,7 +13,7 @@ import MessagesPage from './pages/Message/MessagesPage';
 import MarksPage from './pages/Marks/MarksPage';
 import AttendancePage from './pages/Attendance/AttendancePage';
 import { useAuthStore } from './lib/store';
-import AnnouncementsPage from './pages/Announcements/AnnouncementsPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import SuggestionsPage from './pages/Suggestions/SuggestionsPage';
 import ProfileSettings from './pages/Settings/ProfileSettings';
 import TeachersPage from './pages/Teachers/TeachersPage';
