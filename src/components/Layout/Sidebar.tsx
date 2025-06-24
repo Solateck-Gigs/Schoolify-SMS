@@ -63,7 +63,7 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      // { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
       { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
       { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' }
@@ -78,8 +78,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      // { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      // { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
       { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
       { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' }
     ];
@@ -90,8 +90,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
+      // { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      // { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
     ];
     
     const parentItems = [
@@ -100,9 +100,9 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
-      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
+      // { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      // { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
+      // { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
     ];
     
     switch (user?.role) {
