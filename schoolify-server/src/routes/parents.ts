@@ -351,29 +351,24 @@ router.get('/child/:childId/monthly-stats', authenticateToken, requireRole(['par
 });
 
 // Search parents
-router.get('/search', authenticateToken, async (req, res) => {
+router.get('/search', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
   try {
-    const { search } = req.query;
+    const { query } = req.query;
     
-    if (!search || typeof search !== 'string' || search.trim().length < 2) {
-      return res.json([]);
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Search query is required' });
     }
 
-    const searchTerm = search.trim();
-    const searchRegex = new RegExp(searchTerm, 'i');
-
+    // Search for parents where firstName or lastName contains the query (case insensitive)
     const parents = await User.find({
       role: 'parent',
       $or: [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { email: searchRegex },
-        { user_id_number: searchRegex }
+        { firstName: { $regex: query, $options: 'i' } },
+        { lastName: { $regex: query, $options: 'i' } }
       ]
     })
-    .select('_id firstName lastName email user_id_number')
-    .limit(10)
-    .sort({ firstName: 1, lastName: 1 });
+    .select('_id firstName lastName email phone')
+    .limit(10);
 
     res.json(parents);
   } catch (error) {
@@ -383,10 +378,9 @@ router.get('/search', authenticateToken, async (req, res) => {
 });
 
 // Get all parents
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
   try {
     const parents = await User.find({ role: 'parent' })
-      .populate('children', 'firstName lastName admissionNumber')
       .select('-password')
       .sort({ createdAt: -1 });
 

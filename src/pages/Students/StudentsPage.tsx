@@ -523,7 +523,7 @@ export default function StudentsPage() {
                   { value: '', label: 'Select Class' },
                   ...classes.map(cls => ({
                     value: cls._id,
-                    label: `${cls.name} - Grade ${cls.gradeLevel} ${cls.section}`
+                    label: `${cls.name} - ${cls.section}`
                   }))
                 ]}
                 value={formData.classId}
@@ -651,7 +651,7 @@ export default function StudentsPage() {
                 { value: '', label: 'Select Class' },
                 ...classes.map(cls => ({
                   value: cls._id,
-                  label: `${cls.name} - Grade ${cls.gradeLevel} ${cls.section}`
+                  label: `${cls.name} -  ${cls.section}`
                 }))
               ]}
               value={formData.classId}

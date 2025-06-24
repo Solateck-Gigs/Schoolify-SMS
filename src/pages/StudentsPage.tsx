@@ -6,7 +6,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../components/ui/Table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/Dialog';
-import { Search, Plus, Edit, Eye, Trash2, Users, GraduationCap, Phone, Mail } from 'lucide-react';
+import { Search, Plus, Edit, Eye, Trash2, Users, GraduationCap, Phone, Mail, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiFetch } from '../lib/api';
 
@@ -52,11 +52,20 @@ interface Class {
   };
 }
 
+interface Parent {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+}
+
 export default function StudentsPage() {
   const { user } = useAuthStore();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -79,6 +88,12 @@ export default function StudentsPage() {
     classId: '',
     password: ''
   });
+  
+  // Parent search state
+  const [parentSearchQuery, setParentSearchQuery] = useState('');
+  const [parentSearchResults, setParentSearchResults] = useState<Parent[]>([]);
+  const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
+  const [isSearchingParents, setIsSearchingParents] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isTeacher = user?.role === 'teacher';
@@ -120,6 +135,30 @@ export default function StudentsPage() {
     }
   };
 
+  const searchParents = async (query: string) => {
+    if (!query || query.length < 2) {
+      setParentSearchResults([]);
+      return;
+    }
+    
+    try {
+      setIsSearchingParents(true);
+      const results = await apiFetch(`/parents/search?query=${encodeURIComponent(query)}`) as Parent[];
+      setParentSearchResults(results);
+    } catch (error) {
+      console.error('Error searching parents:', error);
+      toast.error('Failed to search parents');
+    } finally {
+      setIsSearchingParents(false);
+    }
+  };
+
+  const handleParentSelect = (parent: Parent) => {
+    setSelectedParent(parent);
+    setParentSearchQuery(`${parent.firstName} ${parent.lastName}`);
+    setParentSearchResults([]);
+  };
+
   const handleAddStudent = async () => {
     try {
       if (!isAdmin) {
@@ -127,9 +166,15 @@ export default function StudentsPage() {
         return;
       }
 
+      // Include parent ID if a parent was selected
+      const studentData = {
+        ...formData,
+        parentId: selectedParent?._id
+      };
+
       await apiFetch('/students', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: studentData,
       });
 
       toast.success('Student added successfully');
@@ -151,9 +196,16 @@ export default function StudentsPage() {
 
       if (!selectedStudent) return;
 
+      // Include parent ID if a parent was selected
+      const updatedData = {
+        ...formData,
+        isActive: selectedStudent.isActive,
+        parentId: selectedParent?._id
+      };
+
       await apiFetch(`/students/${selectedStudent._id}`, {
         method: 'PUT',
-        body: JSON.stringify(formData),
+        body: updatedData,
       });
 
       toast.success('Student updated successfully');
@@ -187,6 +239,37 @@ export default function StudentsPage() {
     }
   };
 
+  const handleToggleStatus = async (student: Student) => {
+    try {
+      if (!isAdmin) {
+        toast.error('You do not have permission to change student status');
+        return;
+      }
+
+      setToggleLoading(student._id);
+      
+      // Make API call to toggle status with PUT method
+      await apiFetch(`/students/${student._id}/toggle-status`, {
+        method: 'PUT',
+        body: JSON.stringify({ isActive: !student.isActive }),
+      });
+
+      // Update local state
+      setStudents(prev => 
+        prev.map(s => 
+          s._id === student._id ? { ...s, isActive: !s.isActive } : s
+        )
+      );
+
+      toast.success(`Student ${student.isActive ? 'deactivated' : 'activated'} successfully`);
+    } catch (error) {
+      console.error('Error toggling student status:', error);
+      toast.error('Failed to update student status');
+    } finally {
+      setToggleLoading(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       firstName: '',
@@ -204,6 +287,9 @@ export default function StudentsPage() {
       password: ''
     });
     setSelectedStudent(null);
+    setSelectedParent(null);
+    setParentSearchQuery('');
+    setParentSearchResults([]);
   };
 
   const openEditModal = (student: Student) => {
@@ -223,6 +309,21 @@ export default function StudentsPage() {
       classId: student.class?._id || '',
       password: ''
     });
+    
+    // Set parent info if available
+    if (student.parent) {
+      setSelectedParent({
+        _id: student.parent._id,
+        firstName: student.parent.firstName,
+        lastName: student.parent.lastName,
+        email: student.parent.email
+      });
+      setParentSearchQuery(`${student.parent.firstName} ${student.parent.lastName}`);
+    } else {
+      setSelectedParent(null);
+      setParentSearchQuery('');
+    }
+    
     setShowEditModal(true);
   };
 
@@ -292,7 +393,7 @@ export default function StudentsPage() {
                   { value: '', label: 'All Classes' },
                   ...classes.map(cls => ({
                     value: cls._id,
-                    label: `${cls.name} - Grade ${cls.gradeLevel}`
+                    label: `${cls.name} - ${cls.section}`
                   }))
                 ]}
                 value={filterClass}
@@ -403,6 +504,21 @@ export default function StudentsPage() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
+                                variant={student.isActive ? "outline" : "primary"}
+                                size="sm"
+                                onClick={() => handleToggleStatus(student)}
+                                className={student.isActive ? "text-red-600 hover:text-red-700" : "bg-green-600 hover:bg-green-700 text-white"}
+                                disabled={toggleLoading === student._id}
+                              >
+                                {toggleLoading === student._id ? (
+                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : student.isActive ? (
+                                  <XCircle className="h-4 w-4" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDeleteStudent(student._id)}
@@ -474,17 +590,84 @@ export default function StudentsPage() {
               onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
             />
             
+            {/* Parent Search */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Link to Existing Parent</label>
+              <div className="relative">
+                <Input
+                  placeholder="Search for parent by name..."
+                  value={parentSearchQuery}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setParentSearchQuery(query);
+                    searchParents(query);
+                  }}
+                  className="pl-10"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                
+                {/* Parent search results dropdown */}
+                {parentSearchResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
+                    {parentSearchResults.map((parent) => (
+                      <div 
+                        key={parent._id}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleParentSelect(parent)}
+                      >
+                        <div className="font-medium">{parent.firstName} {parent.lastName}</div>
+                        <div className="text-sm text-gray-500">{parent.email}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {isSearchingParents && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+              
+              {selectedParent && (
+                <div className="mt-2 p-2 border border-green-200 rounded-md bg-green-50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{selectedParent.firstName} {selectedParent.lastName}</p>
+                      <p className="text-sm text-gray-600">{selectedParent.email}</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setSelectedParent(null);
+                        setParentSearchQuery('');
+                      }}
+                      className="text-gray-500 hover:text-red-500"
+                    >
+                      <XCircle className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500">
+                Search and select an existing parent or enter parent details below
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <Input
                 placeholder="Parent/Guardian Name"
                 value={formData.parentName}
                 onChange={(e) => setFormData({...formData, parentName: e.target.value})}
+                disabled={!!selectedParent}
               />
               <Input
                 type="tel"
                 placeholder="Parent Phone"
                 value={formData.parentPhone}
                 onChange={(e) => setFormData({...formData, parentPhone: e.target.value})}
+                disabled={!!selectedParent}
               />
             </div>
             
@@ -525,7 +708,7 @@ export default function StudentsPage() {
                   { value: '', label: 'Select Class' },
                   ...classes.map(cls => ({
                     value: cls._id,
-                    label: `${cls.name} - Grade ${cls.gradeLevel} ${cls.section}`
+                    label: `${cls.name} - Section ${cls.section}`
                   }))
                 ]}
                 value={formData.classId}
@@ -603,17 +786,84 @@ export default function StudentsPage() {
               onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
             />
             
+            {/* Parent Search */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Link to Existing Parent</label>
+              <div className="relative">
+                <Input
+                  placeholder="Search for parent by name..."
+                  value={parentSearchQuery}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setParentSearchQuery(query);
+                    searchParents(query);
+                  }}
+                  className="pl-10"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                
+                {/* Parent search results dropdown */}
+                {parentSearchResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
+                    {parentSearchResults.map((parent) => (
+                      <div 
+                        key={parent._id}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleParentSelect(parent)}
+                      >
+                        <div className="font-medium">{parent.firstName} {parent.lastName}</div>
+                        <div className="text-sm text-gray-500">{parent.email}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {isSearchingParents && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+              
+              {selectedParent && (
+                <div className="mt-2 p-2 border border-green-200 rounded-md bg-green-50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{selectedParent.firstName} {selectedParent.lastName}</p>
+                      <p className="text-sm text-gray-600">{selectedParent.email}</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setSelectedParent(null);
+                        setParentSearchQuery('');
+                      }}
+                      className="text-gray-500 hover:text-red-500"
+                    >
+                      <XCircle className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500">
+                Search and select an existing parent or enter parent details below
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <Input
                 placeholder="Parent/Guardian Name"
                 value={formData.parentName}
                 onChange={(e) => setFormData({...formData, parentName: e.target.value})}
+                disabled={!!selectedParent}
               />
               <Input
                 type="tel"
                 placeholder="Parent Phone"
                 value={formData.parentPhone}
                 onChange={(e) => setFormData({...formData, parentPhone: e.target.value})}
+                disabled={!!selectedParent}
               />
             </div>
             
@@ -660,6 +910,26 @@ export default function StudentsPage() {
               onChange={(e) => setFormData({...formData, classId: e.target.value})}
               fullWidth
             />
+            
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={selectedStudent?.isActive || false}
+                onChange={() => {
+                  if (selectedStudent) {
+                    setSelectedStudent({
+                      ...selectedStudent,
+                      isActive: !selectedStudent.isActive
+                    });
+                  }
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+                Active Status
+              </label>
+            </div>
           </div>
           
           <div className="flex justify-end gap-2 mt-6">
@@ -714,11 +984,26 @@ export default function StudentsPage() {
                     ) : (
                       <p className="text-gray-400">No class assigned</p>
                     )}
-                    <p><span className="font-medium">Status:</span> 
+                    <div className="flex items-center">
+                      <span className="font-medium">Status:</span> 
                       <span className={`ml-2 px-2 py-1 text-xs rounded-full ${getStatusColor(selectedStudent.isActive)}`}>
                         {selectedStudent.isActive ? 'Active' : 'Inactive'}
                       </span>
-                    </p>
+                      
+                      {isAdmin && (
+                        <Button
+                          variant={selectedStudent.isActive ? "outline" : "primary"}
+                          size="sm"
+                          onClick={() => {
+                            handleToggleStatus(selectedStudent);
+                            setShowViewModal(false);
+                          }}
+                          className={`ml-2 ${selectedStudent.isActive ? "text-red-600 hover:text-red-700" : "bg-green-600 hover:bg-green-700 text-white"}`}
+                        >
+                          {selectedStudent.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      )}
+                    </div>
                     <p><span className="font-medium">Joined:</span> {new Date(selectedStudent.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>

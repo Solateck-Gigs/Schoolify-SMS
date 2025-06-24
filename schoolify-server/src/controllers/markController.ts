@@ -67,6 +67,19 @@ export const addMark = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized to add marks for this class' });
     }
 
+    // Check if student is active
+    const student = await User.findOne({ _id: studentId, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    
+    if (!student.isActive) {
+      return res.status(403).json({ 
+        error: 'Cannot add marks for inactive students',
+        message: `Student ${student.firstName} ${student.lastName} is currently inactive`
+      });
+    }
+
     // Calculate grade based on score percentage
     const percentage = (score / totalScore) * 100;
     let grade = 'F';
@@ -114,6 +127,15 @@ export const updateMark = async (req: Request, res: Response) => {
     // Verify teacher owns this mark
     if (mark.teacher.toString() !== teacherId.toString()) {
       return res.status(403).json({ error: 'Not authorized to update this mark' });
+    }
+
+    // Check if student is active
+    const student = await User.findOne({ _id: mark.student, role: 'student' });
+    if (!student || !student.isActive) {
+      return res.status(403).json({ 
+        error: 'Cannot update marks for inactive students',
+        message: `Student ${student ? student.firstName + ' ' + student.lastName : ''} is currently inactive`
+      });
     }
 
     // Recalculate grade if score or total score changed

@@ -10,6 +10,7 @@ export interface IUser extends Document {
   role: 'admin' | 'super_admin' | 'teacher' | 'parent' | 'student';
   user_id_number: string;
   phone?: string;
+  isActive: boolean;
   
   // Teacher-specific fields
   employeeId?: string;
@@ -81,6 +82,10 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
     trim: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   },
   
   // Teacher-specific fields
@@ -197,5 +202,6 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 userSchema.index({ role: 1 });
 userSchema.index({ parent: 1 });
 userSchema.index({ class: 1 });
+userSchema.index({ isActive: 1 });
 
 export const User = mongoose.model<IUser>('User', userSchema); 
