@@ -75,7 +75,7 @@ router.get('/class/:classId/students', authenticateToken, requireRole(['admin', 
     const students = await User.find({ 
       role: 'student', 
       class: classId 
-    }).select('firstName lastName user_id_number admissionNumber email');
+    }).select('firstName lastName user_id_number admissionNumber email isActive');
 
     // If date is provided, get attendance records for that date
     let attendanceRecords: any[] = [];
@@ -103,6 +103,7 @@ router.get('/class/:classId/students', authenticateToken, requireRole(['admin', 
         user_id_number: student.user_id_number,
         admissionNumber: student.admissionNumber,
         email: student.email,
+        isActive: student.isActive || false,
         present: attendanceRecord ? attendanceRecord.status === 'present' : false,
         status: attendanceRecord ? attendanceRecord.status : null,
         reason: attendanceRecord ? attendanceRecord.reason : null
@@ -211,6 +212,13 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
 
     console.log('Processing attendance for:', { academicYear, term, recordsCount: attendanceRecords.length });
 
+    // Track successful, failed and inactive student records
+    const results = {
+      success: [] as any[],
+      failed: [] as any[],
+      inactive: [] as any[]
+    };
+
     // Create or update attendance records
     const attendancePromises = attendanceRecords.map(async (record: any) => {
       try {
@@ -218,6 +226,27 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
         if (!record.studentId || !record.status) {
           console.log('Invalid attendance record:', record);
           throw new Error('Invalid attendance record structure');
+        }
+
+        // Check if student is active
+        const student = await User.findOne({ _id: record.studentId, role: 'student' });
+        if (!student) {
+          results.failed.push({
+            studentId: record.studentId,
+            error: 'Student not found'
+          });
+          return;
+        }
+        
+        // Skip inactive students
+        if (!student.isActive) {
+          console.log(`Student ${record.studentId} (${student.firstName} ${student.lastName}) is inactive. Attendance not recorded.`);
+          results.inactive.push({
+            studentId: record.studentId,
+            name: `${student.firstName} ${student.lastName}`,
+            message: 'Cannot mark attendance for inactive students'
+          });
+          return;
         }
 
         // Create a fresh date object for each iteration to avoid mutation
@@ -237,7 +266,14 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
           existingAttendance.status = record.status;
           existingAttendance.reason = record.reason;
           existingAttendance.marked_by = user._id;
-          return existingAttendance.save();
+          await existingAttendance.save();
+          
+          results.success.push({
+            studentId: record.studentId,
+            name: `${student.firstName} ${student.lastName}`,
+            status: record.status,
+            updated: true
+          });
         } else {
           // Create new record with a fresh date object
           const recordDate = new Date(date);
@@ -251,7 +287,14 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
             marked_by: user._id,
             reason: record.reason
           });
-          return attendance.save();
+          await attendance.save();
+          
+          results.success.push({
+            studentId: record.studentId,
+            name: `${student.firstName} ${student.lastName}`,
+            status: record.status,
+            updated: false
+          });
         }
       } catch (recordError) {
         console.error('Error processing individual attendance record:', recordError);
@@ -260,8 +303,18 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
     });
 
     await Promise.all(attendancePromises);
-    console.log('Attendance marked successfully');
-    res.status(201).json({ message: 'Attendance marked successfully' });
+    
+    console.log('Attendance marked successfully', {
+      success: results.success.length,
+      failed: results.failed.length,
+      inactive: results.inactive.length
+    });
+    
+    // Return the results so frontend can show appropriate messages
+    res.status(201).json({ 
+      message: 'Attendance processed',
+      results
+    });
   } catch (error) {
     console.error('Error marking attendance:', error);
     res.status(500).json({ error: 'Server error' });
@@ -283,6 +336,15 @@ router.put('/:attendanceId', authenticateToken, requireRole(['admin', 'super_adm
     // Authorization check - admin can update all, teacher can only update records they marked
     if (user.role === 'teacher' && attendance.marked_by.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to update this attendance record' });
+    }
+    
+    // Check if student is active
+    const student = await User.findOne({ _id: attendance.student });
+    if (!student || !student.isActive) {
+      return res.status(403).json({
+        error: 'Cannot update attendance for inactive students',
+        message: `Student ${student ? student.firstName + ' ' + student.lastName : ''} is currently inactive`
+      });
     }
 
     attendance.status = status;

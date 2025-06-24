@@ -18,6 +18,7 @@ interface Student {
   admissionNumber: string;
   email: string;
   present: boolean;
+  isActive: boolean;
   status: 'present' | 'absent' | 'late' | null;
   reason?: string;
 }
@@ -459,7 +460,28 @@ export default function AttendancePage() {
         return;
       }
 
-      await apiFetch('/attendance/mark', {
+      interface AttendanceResponse {
+        message: string;
+        results: {
+          success: Array<{
+            studentId: string;
+            name: string;
+            status: string;
+            updated: boolean;
+          }>;
+          failed: Array<{
+            studentId: string;
+            error: string;
+          }>;
+          inactive: Array<{
+            studentId: string;
+            name: string;
+            message: string;
+          }>;
+        }
+      }
+
+      const response = await apiFetch<AttendanceResponse>('/attendance/mark', {
         method: 'POST',
         body: {
           classId: selectedClass,
@@ -468,14 +490,34 @@ export default function AttendancePage() {
         },
       });
 
-      toast.success(`Attendance saved successfully for ${attendanceRecords.length} students`);
+      // Check if there were any inactive students that couldn't be processed
+      if (response.results.inactive && response.results.inactive.length > 0) {
+        // Show warning about inactive students
+        const inactiveNames = response.results.inactive.map(s => s.name).join(', ');
+        toast.error(`Could not mark attendance for inactive students: ${inactiveNames}`);
+      }
+      
+      // Show success message for students that were processed
+      if (response.results.success && response.results.success.length > 0) {
+        toast.success(`Attendance saved successfully for ${response.results.success.length} students`);
+      } else {
+        toast.error('No attendance records were processed successfully');
+      }
       
       // Refresh the students data and attendance history
       await fetchStudents();
       await fetchAttendanceHistory();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving attendance:', error);
-      toast.error('Failed to save attendance');
+      // Handle specific error messages from the API
+      if (error.response?.data?.results?.inactive?.length > 0) {
+        const inactiveNames = error.response.data.results.inactive
+          .map((s: any) => s.name)
+          .join(', ');
+        toast.error(`Cannot mark attendance for inactive students: ${inactiveNames}`);
+      } else {
+        toast.error(error.message || 'Failed to save attendance');
+      }
     } finally {
       setSaving(false);
     }
@@ -606,9 +648,14 @@ export default function AttendancePage() {
                   </TableHead>
                   <TableBody>
                     {students.map((student) => (
-                      <TableRow key={student.id}>
+                      <TableRow key={student.id} className={!student.isActive ? "bg-gray-50" : ""}>
                         <TableCell className="font-medium">
                           {student.firstName} {student.lastName}
+                          {!student.isActive && (
+                            <span className="ml-2 px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-800">
+                              Inactive
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
@@ -624,6 +671,8 @@ export default function AttendancePage() {
                                 size="sm"
                                 onClick={() => handleAttendanceChange(student.id, 'present')}
                                 className={student.status === 'present' ? "bg-green-600 hover:bg-green-700" : ""}
+                                disabled={!student.isActive}
+                                title={!student.isActive ? "Cannot mark attendance for inactive students" : ""}
                               >
                                 Present
                               </Button>
@@ -632,6 +681,8 @@ export default function AttendancePage() {
                                 size="sm"
                                 onClick={() => handleAttendanceChange(student.id, 'absent')}
                                 className={student.status === 'absent' ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+                                disabled={!student.isActive}
+                                title={!student.isActive ? "Cannot mark attendance for inactive students" : ""}
                               >
                                 Absent
                               </Button>
@@ -640,6 +691,8 @@ export default function AttendancePage() {
                                 size="sm"
                                 onClick={() => handleAttendanceChange(student.id, 'late')}
                                 className={student.status === 'late' ? "bg-yellow-600 hover:bg-yellow-700 text-white" : ""}
+                                disabled={!student.isActive}
+                                title={!student.isActive ? "Cannot mark attendance for inactive students" : ""}
                               >
                                 Late
                               </Button>
@@ -647,9 +700,15 @@ export default function AttendancePage() {
                           </TableCell>
                         ) : (
                           <TableCell>
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(student.status)}`}>
-                              {student.status ? student.status.charAt(0).toUpperCase() + student.status.slice(1) : 'Not Marked'}
-                            </span>
+                            {student.status ? (
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(student.status)}`}>
+                                {student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                Not Marked
+                              </span>
+                            )}
                           </TableCell>
                         )}
                       </TableRow>

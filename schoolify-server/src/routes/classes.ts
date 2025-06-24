@@ -313,6 +313,7 @@ router.get('/students/:id', authenticateToken, async (req: Request, res: Respons
     }
 
     const students = await User.find({ role: 'student', class: classId })
+      .populate('parent', 'firstName lastName email')
       .select('-password');
 
     res.status(200).json({
