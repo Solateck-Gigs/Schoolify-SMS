@@ -1,16 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Bell, MessageSquare, LogOut, User, ChevronDown, Settings } from 'lucide-react';
+import { Menu, Bell, MessageSquare, LogOut, User, ChevronDown, Settings, Trash2, Check } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { apiFetch } from '../../lib/api';
+import { toast } from 'react-hot-toast';
 
 interface Notification {
-  id: string;
+  _id: string;
   title: string;
-  message: string;
-  type: 'message' | 'announcement' | 'attendance' | 'fee';
-  read: boolean;
+  content: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  isActive: boolean;
+  readBy: string[];
   createdAt: string;
+  createdBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  };
 }
 
 interface Message {
@@ -38,6 +46,7 @@ export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: Header
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [unreadCount, setUnreadCount] = useState({ notifications: 0, messages: 0 });
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -64,52 +73,54 @@ export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: Header
 
   // Fetch notifications and messages
   useEffect(() => {
-    const fetchNotifications = async () => {
-      // TODO: Implement actual notification fetching
-      const mockNotifications: Notification[] = [
-        {
-          id: '1',
-          title: 'New Message',
-          message: 'You have a new message from John Doe',
-          type: 'message',
-          read: false,
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          title: 'Fee Due',
-          message: 'Your next fee payment is due in 3 days',
-          type: 'fee',
-          read: false,
-          createdAt: new Date().toISOString(),
-        },
-      ];
-      setNotifications(mockNotifications);
-      setUnreadCount(prev => ({ ...prev, notifications: mockNotifications.filter(n => !n.read).length }));
-    };
+    if (user && user._id) {
+      fetchNotifications();
+      fetchMessages();
+    }
+  }, [user]);
 
-    const fetchMessages = async () => {
-      // TODO: Implement actual message fetching
-      const mockMessages: Message[] = [
-        {
-          id: '1',
-          sender: {
-            id: '1',
-            name: 'John Doe',
-            role: 'Teacher',
-          },
-          preview: 'Hello, I wanted to discuss...',
-          unread: true,
-          createdAt: new Date().toISOString(),
-        },
-      ];
-      setMessages(mockMessages);
-      setUnreadCount(prev => ({ ...prev, messages: mockMessages.filter(m => m.unread).length }));
-    };
+  const fetchNotifications = async () => {
+    if (!user || !user._id) return;
+    
+    setLoadingNotifications(true);
+    try {
+      // Fetch announcements from the backend
+      const announcements = await apiFetch<Notification[]>('/announcements');
+      
+      // Process announcements into notifications
+      setNotifications(announcements);
+      
+      // Count unread notifications (not in readBy array)
+      const unreadNotifications = announcements.filter(
+        notification => !notification.readBy.includes(user._id)
+      ).length;
+      
+      setUnreadCount(prev => ({ ...prev, notifications: unreadNotifications }));
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
 
-    fetchNotifications();
-    fetchMessages();
-  }, []);
+  const fetchMessages = async () => {
+    // TODO: Implement actual message fetching
+    const mockMessages: Message[] = [
+      {
+        id: '1',
+        sender: {
+          id: '1',
+          name: 'John Doe',
+          role: 'Teacher',
+        },
+        preview: 'Hello, I wanted to discuss...',
+        unread: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    setMessages(mockMessages);
+    setUnreadCount(prev => ({ ...prev, messages: mockMessages.filter(m => m.unread).length }));
+  };
 
   const handleLogout = async () => {
     try {
@@ -121,16 +132,69 @@ export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: Header
   };
 
   const markNotificationAsRead = async (notificationId: string) => {
-    // TODO: Implement actual notification marking
-    setNotifications(prev =>
-      prev.map(n =>
-        n.id === notificationId ? { ...n, read: true } : n
-      )
-    );
-    setUnreadCount(prev => ({
-      ...prev,
-      notifications: notifications.filter(n => !n.read && n.id !== notificationId).length,
-    }));
+    if (!user || !user._id) return;
+    
+    try {
+      // Call the API to mark the announcement as read
+      await apiFetch(`/announcements/${notificationId}/read`, {
+        method: 'POST'
+      });
+      
+      // Update the UI
+      setNotifications(prev =>
+        prev.map(n =>
+          n._id === notificationId ? { ...n, readBy: [...n.readBy, user._id] } : n
+        )
+      );
+      
+      // Update unread count
+      setUnreadCount(prev => ({
+        ...prev,
+        notifications: notifications.filter(n => !n.readBy.includes(user._id) && n._id !== notificationId).length,
+      }));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      toast.error('Failed to mark notification as read');
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (!user || !user._id) return;
+    
+    try {
+      // Get all unread notification IDs
+      const unreadNotifications = notifications.filter(n => !n.readBy.includes(user._id));
+      
+      // Mark each as read
+      const promises = unreadNotifications.map(notification => 
+        apiFetch(`/announcements/${notification._id}/read`, {
+          method: 'POST'
+        })
+      );
+      
+      await Promise.all(promises);
+      
+      // Update the UI
+      setNotifications(prev =>
+        prev.map(n => {
+          if (!n.readBy.includes(user._id)) {
+            return { ...n, readBy: [...n.readBy, user._id] };
+          }
+          return n;
+        })
+      );
+      
+      // Update unread count
+      setUnreadCount(prev => ({
+        ...prev,
+        notifications: 0,
+      }));
+      
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      toast.error('Failed to mark all notifications as read');
+    }
   };
 
   const markMessageAsRead = async (messageId: string) => {
@@ -167,7 +231,12 @@ export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: Header
             {/* Notifications Dropdown */}
             <div className="relative" ref={notificationsRef}>
               <button
-                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                onClick={() => {
+                  setIsNotificationsOpen(!isNotificationsOpen);
+                  if (!isNotificationsOpen) {
+                    fetchNotifications();
+                  }
+                }}
                 className="p-2 text-gray-500 hover:text-gray-700 focus:outline-none relative"
               >
                 <Bell size={20} />
@@ -177,38 +246,91 @@ export default function Header({ isMobileMenuOpen, setIsMobileMenuOpen }: Header
               </button>
 
               {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+                <div className="absolute right-0 mt-2 w-96 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <div className="py-1" role="menu">
-                    <div className="px-4 py-2 border-b">
-                      <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
+                    <div className="px-4 py-2 border-b flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-gray-900">Announcements</h3>
+                      {notifications.length > 0 && (
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={markAllNotificationsAsRead}
+                            className="text-xs flex items-center text-blue-600 hover:text-blue-800"
+                            disabled={unreadCount.notifications === 0}
+                          >
+                            <Check size={14} className="mr-1" />
+                            Mark all as read
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="max-h-96 overflow-y-auto">
-                      {notifications.length === 0 ? (
+                      {loadingNotifications ? (
+                        <div className="px-4 py-2 text-sm text-gray-500">Loading notifications...</div>
+                      ) : notifications.length === 0 ? (
                         <div className="px-4 py-2 text-sm text-gray-500">No notifications</div>
                       ) : (
-                        notifications.map((notification) => (
-                          <button
-                            key={notification.id}
-                            onClick={() => markNotificationAsRead(notification.id)}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                              !notification.read ? 'bg-blue-50' : ''
-                            }`}
-                          >
-                            <div className="flex items-start">
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900">{notification.title}</p>
-                                <p className="text-gray-500">{notification.message}</p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {new Date(notification.createdAt).toLocaleString()}
-                                </p>
+                        notifications.map((notification) => {
+                          const isRead = notification.readBy.includes(user?._id || '');
+                          const priorityColors = {
+                            low: 'bg-gray-100',
+                            medium: 'bg-blue-100',
+                            high: 'bg-orange-100',
+                            urgent: 'bg-red-100'
+                          };
+                          const priorityTextColors = {
+                            low: 'text-gray-700',
+                            medium: 'text-blue-700',
+                            high: 'text-orange-700',
+                            urgent: 'text-red-700'
+                          };
+                          return (
+                            <button
+                              key={notification._id}
+                              onClick={() => {
+                                if (!isRead) {
+                                  markNotificationAsRead(notification._id);
+                                }
+                                navigate('/announcements');
+                              }}
+                              className={`w-full text-left px-4 py-3 border-b text-sm hover:bg-gray-50 ${
+                                !isRead ? 'bg-blue-50' : ''
+                              }`}
+                            >
+                              <div className="flex items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <p className="font-medium text-gray-900">{notification.title}</p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${priorityColors[notification.priority]} ${priorityTextColors[notification.priority]}`}>
+                                      {notification.priority}
+                                    </span>
+                                  </div>
+                                  <p className="text-gray-600 line-clamp-2">{notification.content}</p>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <p className="text-xs text-gray-400">
+                                      {new Date(notification.createdAt).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      By: {notification.createdBy?.firstName} {notification.createdBy?.lastName}
+                                    </p>
+                                  </div>
+                                </div>
+                                {!isRead && (
+                                  <span className="ml-2 h-2 w-2 mt-2 flex-shrink-0 rounded-full bg-blue-500"></span>
+                                )}
                               </div>
-                              {!notification.read && (
-                                <span className="ml-2 h-2 w-2 rounded-full bg-blue-500"></span>
-                              )}
-                            </div>
-                          </button>
-                        ))
+                            </button>
+                          );
+                        })
                       )}
+                    </div>
+                    <div className="border-t px-4 py-2">
+                      <Link
+                        to="/announcements"
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                        onClick={() => setIsNotificationsOpen(false)}
+                      >
+                        View all announcements
+                      </Link>
                     </div>
                   </div>
                 </div>
