@@ -2,29 +2,30 @@ import mongoose, { Document, Schema } from 'mongoose';
 import { IUser } from './User';
 
 export interface IClass extends Document {
-  name: string;
+  classType: 'Primary' | 'JHS';
+  gradeId: number;
   section: string;
-  gradeLevel: string;
   academicYear: string;
-  teacher?: mongoose.Types.ObjectId | IUser;
   capacity: number;
+  teacher?: mongoose.Types.ObjectId | IUser;
   description?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const classSchema = new Schema<IClass>({
-  name: {
+  classType: {
     type: String,
     required: true,
-    trim: true
+    enum: ['Primary', 'JHS']
+  },
+  gradeId: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 6
   },
   section: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  gradeLevel: {
     type: String,
     required: true,
     trim: true
@@ -52,8 +53,8 @@ const classSchema = new Schema<IClass>({
   timestamps: true
 });
 
-// Compound index for unique class name + section + academicYear
-classSchema.index({ name: 1, section: 1, academicYear: 1 }, { unique: true });
+// Compound index for unique class identification
+classSchema.index({ classType: 1, gradeId: 1, section: 1, academicYear: 1 }, { unique: true });
 classSchema.index({ teacher: 1 });
 
 export const Class = mongoose.model<IClass>('Class', classSchema); 
