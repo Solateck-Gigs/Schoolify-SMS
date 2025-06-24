@@ -38,7 +38,7 @@ router.get('/students', authenticateToken, requireRole(['teacher']), async (req:
       role: 'student',
       class: { $in: classIds }
     })
-    .populate('class', 'name gradeLevel section')
+    .populate('class', 'classType gradeId section')
     .populate('parent', 'firstName lastName email')
     .sort({ firstName: 1, lastName: 1 });
     
@@ -94,7 +94,7 @@ router.get('/stats', authenticateToken, requireRole(['teacher']), async (req: Re
       attendanceRate,
       averageScore,
       recentMarks: recentMarks.length,
-      classNames: teacherClasses.map(cls => cls.name)
+      classNames: teacherClasses.map(cls => `${cls.classType} ${cls.gradeId}${cls.section ? ` - ${cls.section}` : ''}`)
     });
   } catch (error) {
     console.error('Error fetching teacher stats:', error);
@@ -154,7 +154,7 @@ router.get('/monthly-stats', authenticateToken, requireRole(['teacher']), async 
 router.get('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const teachers = await User.find({ role: 'teacher' })
-      .populate('assignedClasses', 'name')
+      .populate('assignedClasses', 'classType gradeId section')
       .select('-password')
       .sort({ createdAt: -1 });
 
@@ -169,7 +169,7 @@ router.get('/', authenticateToken, requireRole(['admin', 'super_admin']), async 
 router.get('/:id', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
   try {
     const teacher = await User.findOne({ _id: req.params.id, role: 'teacher' })
-      .populate('assignedClasses', 'name')
+      .populate('assignedClasses', 'classType gradeId section')
       .select('-password');
 
     if (!teacher) {

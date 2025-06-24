@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import Label from '../../components/ui/Label';
 import { useAuthStore } from '../../lib/store';
 
+// Interface that matches what's in the MongoDB database
 interface Class {
-  id: number;
+  _id: string;
   name: string;
   section: string;
-  academicYear: string;
+  level: string;
   capacity: number;
   teacher?: {
     _id: string;
@@ -21,7 +22,12 @@ interface Class {
     lastName: string;
     email: string;
   } | string;
-  gradeId: number;
+  createdAt: string;
+  updatedAt: string;
+  // Backend still expects these fields, so we need to derive them
+  classType?: 'Primary' | 'JHS';
+  gradeId?: number;
+  academicYear?: string;
 }
 
 export default function ClassesPage() {
@@ -32,21 +38,40 @@ export default function ClassesPage() {
   const [newClassData, setNewClassData] = useState({
     name: '',
     section: '',
-    academicYear: '',
-    capacity: '',
+    level: 'primary',
+    capacity: '30',
     teacher: '',
-    gradeId: '',
+    academicYear: new Date().getFullYear().toString(),
   });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [editClassData, setEditClassData] = useState({
     name: '',
     section: '',
-    academicYear: '',
-    capacity: '',
+    level: 'primary',
+    capacity: '30',
     teacher: '',
-    gradeId: '',
+    academicYear: '',
   });
+
+  // Extract grade level from class name (e.g., "Primary 1" -> 1)
+  const extractGradeLevel = (className: string): number => {
+    const match = className.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 1;
+  };
+
+  // Format class type (e.g., "primary" -> "Primary")
+  const formatClassType = (level: string): string => {
+    return level.charAt(0).toUpperCase() + level.slice(1);
+  };
+
+  // Parse name and level to get classType and gradeId for backend
+  const parseClassInfo = (name: string, level: string) => {
+    const gradeId = extractGradeLevel(name);
+    const classType = formatClassType(level) as 'Primary' | 'JHS';
+    
+    return { classType, gradeId };
+  };
 
   useEffect(() => {
     fetchClasses();
@@ -70,7 +95,7 @@ export default function ClassesPage() {
     setNewClassData(prev => ({ ...prev, [name]: value }));
   };
 
-   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setEditClassData(prev => ({ ...prev, [name]: value }));
   };
@@ -78,69 +103,85 @@ export default function ClassesPage() {
   const handleAddClass = async () => {
     setLoading(true);
     try {
+      // Extract classType and gradeId from name and level for the backend
+      const { classType, gradeId } = parseClassInfo(newClassData.name, newClassData.level);
+      
       const newClass = {
         name: newClassData.name,
         section: newClassData.section,
-        academicYear: newClassData.academicYear,
+        level: newClassData.level,
         capacity: parseInt(newClassData.capacity),
         teacher: newClassData.teacher || null,
-        gradeId: parseInt(newClassData.gradeId),
+        // Add fields the backend expects
+        classType,
+        gradeId,
+        academicYear: newClassData.academicYear
       };
+      
       const classObj = await apiFetch('/classes', {
         method: 'POST',
         body: JSON.stringify(newClass),
       }) as Class;
+      
       setClasses(prev => [...prev, classObj]);
       toast.success('Class added successfully');
       setIsAddModalOpen(false);
       setNewClassData({
         name: '',
         section: '',
-        academicYear: '',
-        capacity: '',
+        level: 'primary',
+        capacity: '30',
         teacher: '',
-        gradeId: '',
+        academicYear: new Date().getFullYear().toString(),
       });
     } catch (error) {
       console.error('Error adding class:', error);
-        toast.error('Failed to add class');
+      toast.error('Failed to add class');
     }
     setLoading(false);
   };
 
-   const handleEditClass = async () => {
+  const handleEditClass = async () => {
     if (!selectedClass) return;
     setLoading(true);
     try {
+      // Extract classType and gradeId for the backend
+      const { classType, gradeId } = parseClassInfo(editClassData.name, editClassData.level);
+      
       const updatedClass = {
         name: editClassData.name,
         section: editClassData.section,
-        academicYear: editClassData.academicYear,
+        level: editClassData.level,
         capacity: parseInt(editClassData.capacity),
         teacher: editClassData.teacher || null,
-        gradeId: parseInt(editClassData.gradeId),
+        // Add fields the backend expects
+        classType,
+        gradeId,
+        academicYear: editClassData.academicYear || new Date().getFullYear().toString()
       };
-      const classObj = await apiFetch(`/classes/${selectedClass.id}`, {
+      
+      const classObj = await apiFetch(`/classes/${selectedClass._id}`, {
         method: 'PUT',
         body: JSON.stringify(updatedClass),
       }) as Class;
-      setClasses(prev => prev.map(cls => cls.id === classObj.id ? classObj : cls));
+      
+      setClasses(prev => prev.map(cls => cls._id === classObj._id ? classObj : cls));
       toast.success('Class updated successfully');
       setIsEditModalOpen(false);
       setSelectedClass(null);
     } catch (error) {
       console.error('Error updating class:', error);
-        toast.error('Failed to update class');
+      toast.error('Failed to update class');
     }
     setLoading(false);
   };
 
-  const handleDeleteClass = async (classId: number) => {
+  const handleDeleteClass = async (classId: string) => {
     if (window.confirm('Are you sure you want to delete this class?')) {
       setLoading(true);
       try {
         await apiFetch(`/classes/${classId}`, { method: 'DELETE' });
-        setClasses(prev => prev.filter(cls => cls.id !== classId));
+        setClasses(prev => prev.filter(cls => cls._id !== classId));
         toast.success('Class deleted successfully');
       } catch (error) {
         console.error('Error deleting class:', error);
@@ -153,12 +194,12 @@ export default function ClassesPage() {
   const openEditModal = (cls: Class) => {
     setSelectedClass(cls);
     setEditClassData({
-      name: cls.name,
-      section: cls.section,
-      academicYear: cls.academicYear,
-      capacity: cls.capacity.toString(),
+      name: cls.name || '',
+      section: cls.section || '',
+      level: cls.level || 'primary',
+      capacity: cls.capacity ? cls.capacity.toString() : '30',
       teacher: cls.teacher ? (typeof cls.teacher === 'string' ? cls.teacher : cls.teacher._id) : '',
-      gradeId: cls.gradeId.toString(),
+      academicYear: cls.academicYear || new Date().getFullYear().toString(),
     });
     setIsEditModalOpen(true);
   };
@@ -166,7 +207,6 @@ export default function ClassesPage() {
 
   const filteredClasses = classes.filter(cls =>
     cls.name.toLowerCase().includes(searchTerm.toLowerCase())
-    // Add filtering by supervisor name or grade if joined later
   );
 
   return (
@@ -198,36 +238,29 @@ export default function ClassesPage() {
                     name="name"
                     value={newClassData.name}
                     onChange={handleInputChange}
-                    placeholder="e.g., Mathematics A"
+                    placeholder="e.g., Primary 1"
                     required
                     className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor="section" className="text-sm font-medium text-gray-700">Section</Label>
-                  <Input
-                    id="section"
-                    name="section"
-                    value={newClassData.section}
-                    onChange={handleInputChange}
-                    placeholder="e.g., A"
-                    required
-                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="academicYear" className="text-sm font-medium text-gray-700">Academic Year</Label>
-                  <Input
-                    id="academicYear"
-                    name="academicYear"
-                    value={newClassData.academicYear}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 2023-2024"
-                    required
-                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  <Label htmlFor="level" className="text-sm font-medium text-gray-700">Class Level</Label>
+                  <select
+                    id="level"
+                    name="level"
+                    value={newClassData.level}
+                    onChange={(e) => {
+                      setNewClassData(prev => ({
+                        ...prev,
+                        level: e.target.value
+                      }));
+                    }}
+                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="primary">Primary</option>
+                    <option value="jhs">JHS</option>
+                  </select>
                 </div>
                 
                 <div>
@@ -258,17 +291,27 @@ export default function ClassesPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="gradeId" className="text-sm font-medium text-gray-700">Grade Level</Label>
+                  <Label htmlFor="section" className="text-sm font-medium text-gray-700">Section</Label>
                   <Input
-                    id="gradeId"
-                    name="gradeId"
-                    type="number"
-                    value={newClassData.gradeId}
+                    id="section"
+                    name="section"
+                    value={newClassData.section}
                     onChange={handleInputChange}
-                    placeholder="e.g., 10"
+                    placeholder="e.g., A"
                     required
-                    min="1"
-                    max="12"
+                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="academicYear" className="text-sm font-medium text-gray-700">Academic Year</Label>
+                  <Input
+                    id="academicYear"
+                    name="academicYear"
+                    value={newClassData.academicYear}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 2023-2024"
+                    required
                     className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -315,7 +358,7 @@ export default function ClassesPage() {
               <TableHeader>Class Name</TableHeader>
               <TableHeader>Capacity</TableHeader>
               <TableHeader>Teacher</TableHeader>
-              <TableHeader>Grade Level</TableHeader>
+              <TableHeader>Section</TableHeader>
               <TableHeader className="text-right">Actions</TableHeader>
             </TableRow>
           </TableHead>
@@ -330,16 +373,16 @@ export default function ClassesPage() {
               </TableRow>
             ) : (
               filteredClasses.map(cls => (
-                <TableRow key={cls.id}>
+                <TableRow key={cls._id}>
                   <TableCell>{cls.name}</TableCell>
                   <TableCell>{cls.capacity}</TableCell>
                   <TableCell>{cls.teacher ? (typeof cls.teacher === 'string' ? cls.teacher : `${cls.teacher.firstName} ${cls.teacher.lastName}`) : 'N/A'}</TableCell>
-                  <TableCell>Grade {cls.gradeId}</TableCell>
+                  <TableCell>{cls.section}</TableCell>
                   <TableCell className="text-right flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => openEditModal(cls)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDeleteClass(cls.id)}>
+                    <Button variant="danger" size="sm" onClick={() => handleDeleteClass(cls._id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -376,27 +419,22 @@ export default function ClassesPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="edit_section" className="text-sm font-medium text-gray-700">Section</Label>
-                  <Input
-                    id="edit_section"
-                    name="section"
-                    value={editClassData.section}
-                    onChange={handleEditInputChange}
-                    required
-                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit_academicYear" className="text-sm font-medium text-gray-700">Academic Year</Label>
-                  <Input
-                    id="edit_academicYear"
-                    name="academicYear"
-                    value={editClassData.academicYear}
-                    onChange={handleEditInputChange}
-                    required
-                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  <Label htmlFor="edit_level" className="text-sm font-medium text-gray-700">Class Level</Label>
+                  <select
+                    id="edit_level"
+                    name="level"
+                    value={editClassData.level}
+                    onChange={(e) => {
+                      setEditClassData(prev => ({
+                        ...prev,
+                        level: e.target.value
+                      }));
+                    }}
+                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="primary">Primary</option>
+                    <option value="jhs">JHS</option>
+                  </select>
                 </div>
                 
                 <div>
@@ -426,16 +464,25 @@ export default function ClassesPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="edit_gradeId" className="text-sm font-medium text-gray-700">Grade Level</Label>
+                  <Label htmlFor="edit_section" className="text-sm font-medium text-gray-700">Section</Label>
                   <Input
-                    id="edit_gradeId"
-                    name="gradeId"
-                    type="number"
-                    value={editClassData.gradeId}
+                    id="edit_section"
+                    name="section"
+                    value={editClassData.section}
                     onChange={handleEditInputChange}
                     required
-                    min="1"
-                    max="12"
+                    className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit_academicYear" className="text-sm font-medium text-gray-700">Academic Year</Label>
+                  <Input
+                    id="edit_academicYear"
+                    name="academicYear"
+                    value={editClassData.academicYear}
+                    onChange={handleEditInputChange}
+                    required
                     className="bg-white border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>

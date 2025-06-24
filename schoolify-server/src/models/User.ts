@@ -194,11 +194,7 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 };
 
 // Create indexes for better query performance
-userSchema.index({ user_id_number: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
-userSchema.index({ employeeId: 1 });
-userSchema.index({ admissionNumber: 1 });
 userSchema.index({ parent: 1 });
 userSchema.index({ class: 1 });
 

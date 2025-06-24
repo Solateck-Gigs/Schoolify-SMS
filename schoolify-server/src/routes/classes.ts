@@ -55,7 +55,8 @@ router.get('/details/:id', authenticateToken, async (req: Request, res: Response
 router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const {
-      name,
+      classType,
+      gradeId,
       section,
       academicYear,
       teacher,
@@ -63,26 +64,36 @@ router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async
       description
     } = req.body;
 
-    if (!name || !section || !academicYear) {
-      return res.status(400).json({ error: 'Name, section, and academic year are required' });
+    if (!classType || !gradeId || !section || !academicYear) {
+      return res.status(400).json({ error: 'Class type, grade level, section, and academic year are required' });
     }
 
-    // Check if class with same name and section already exists for the academic year
+    // Validate grade level based on class type
+    const maxGrade = classType === 'Primary' ? 6 : 3;
+    if (gradeId < 1 || gradeId > maxGrade) {
+      return res.status(400).json({ 
+        error: `Grade level must be between 1 and ${maxGrade} for ${classType} classes` 
+      });
+    }
+
+    // Check if class already exists
     const existingClass = await Class.findOne({ 
-      name, 
+      classType, 
+      gradeId,
       section, 
       academicYear 
     });
     
     if (existingClass) {
       return res.status(400).json({ 
-        error: 'Class with this name and section already exists for the academic year' 
+        error: 'Class with these details already exists for the academic year' 
       });
     }
 
     // Prepare class data
     const classData: any = {
-      name,
+      classType,
+      gradeId,
       section,
       academicYear,
       capacity: capacity || 30,
@@ -134,7 +145,7 @@ router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async
 });
 
 // Update class by ID (admin and super_admin only)
-router.put('/details/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
+router.put('/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const classId = req.params.id;
     const updates = req.body;
@@ -144,13 +155,52 @@ router.put('/details/:id', authenticateToken, requireRole(['admin', 'super_admin
       return res.status(404).json({ error: 'Class not found' });
     }
 
+    // Validate grade level if being updated
+    if (updates.classType || updates.gradeId) {
+      const maxGrade = (updates.classType || classData.classType) === 'Primary' ? 6 : 3;
+      const newGradeId = updates.gradeId || classData.gradeId;
+      if (newGradeId < 1 || newGradeId > maxGrade) {
+        return res.status(400).json({ 
+          error: `Grade level must be between 1 and ${maxGrade} for ${updates.classType || classData.classType} classes` 
+        });
+      }
+    }
+
     // Update class fields
-    if (updates.name) classData.name = updates.name;
+    if (updates.classType) classData.classType = updates.classType;
+    if (updates.gradeId) classData.gradeId = updates.gradeId;
     if (updates.section) classData.section = updates.section;
     if (updates.academicYear) classData.academicYear = updates.academicYear;
-    if (updates.teacher) classData.teacher = updates.teacher;
     if (updates.capacity) classData.capacity = updates.capacity;
     if (updates.description !== undefined) classData.description = updates.description;
+
+    // Handle teacher update
+    if (updates.teacher) {
+      if (mongoose.Types.ObjectId.isValid(updates.teacher)) {
+        const teacherUser = await User.findOne({ 
+          _id: updates.teacher, 
+          role: 'teacher' 
+        });
+        if (teacherUser) {
+          classData.teacher = updates.teacher;
+        } else {
+          return res.status(400).json({ error: 'Invalid teacher ID or user is not a teacher' });
+        }
+      } else {
+        const teacherUser = await User.findOne({
+          role: 'teacher',
+          $or: [
+            { user_id_number: updates.teacher },
+            { employeeId: updates.teacher }
+          ]
+        });
+        if (teacherUser) {
+          classData.teacher = teacherUser._id;
+        } else {
+          return res.status(400).json({ error: 'Teacher not found with the provided ID' });
+        }
+      }
+    }
 
     const updatedClass = await classData.save();
 
@@ -165,7 +215,7 @@ router.put('/details/:id', authenticateToken, requireRole(['admin', 'super_admin
 });
 
 // Delete class by ID (admin and super_admin only)
-router.delete('/details/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
+router.delete('/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const classId = req.params.id;
     const classData = await Class.findById(classId);
@@ -221,7 +271,8 @@ router.get('/stats/:id', authenticateToken, async (req: Request, res: Response) 
 
     const stats = {
       classInfo: {
-        name: classData.name,
+        classType: classData.classType,
+        gradeId: classData.gradeId,
         section: classData.section,
         academicYear: classData.academicYear,
         capacity: classData.capacity
@@ -266,7 +317,8 @@ router.get('/students/:id', authenticateToken, async (req: Request, res: Respons
 
     res.status(200).json({
       classInfo: {
-        name: classData.name,
+        classType: classData.classType,
+        gradeId: classData.gradeId,
         section: classData.section,
         academicYear: classData.academicYear
       },
