@@ -89,45 +89,91 @@ interface StatCardProps {
   period?: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, period = "Last 30 days" }) => (
-  <Card sx={{ height: '100%' }}>
-    <CardContent>
-      <Box display="flex" alignItems="center" mb={2}>
-        <Box
-          sx={{
-            backgroundColor: 'primary.light',
-            borderRadius: '50%',
-            p: 1,
-            mr: 2,
-          }}
-        >
-          <Icon size={24} color="primary" />
+const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, period = "Last 30 days" }) => {
+  // Handle undefined/null values
+  const displayValue = value !== undefined && value !== null ? value : 0;
+  const displayChange = change !== undefined && change !== null && !isNaN(change) ? change : 0;
+  
+  // Define colors for different icons
+  const getIconColor = () => {
+    switch (title) {
+      case 'Total Students':
+        return '#3b82f6'; // Blue
+      case 'Average Performance':
+        return '#10b981'; // Green
+      case 'Total Classes':
+        return '#f59e0b'; // Orange
+      case 'Average Attendance':
+        return '#8b5cf6'; // Purple
+      default:
+        return '#6b7280'; // Gray
+    }
+  };
+  
+  const iconColor = getIconColor();
+  
+  return (
+    <Card sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Box
+            sx={{
+              border: `2px solid ${iconColor}`,
+              borderRadius: 2,
+              p: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 48,
+              minHeight: 48,
+              backgroundColor: 'transparent',
+            }}
+          >
+            <Icon size={24} color={iconColor} />
+          </Box>
+          <Typography variant="h6" component="div" color="text.secondary" sx={{ fontSize: '0.9rem', fontWeight: 500 }}>
+            {title}
+          </Typography>
         </Box>
-        <Typography variant="h6" component="div">
-          {title}
+        
+        <Typography variant="h3" component="div" gutterBottom sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+          {displayValue}
         </Typography>
-      </Box>
-      <Typography variant="h3" component="div" gutterBottom>
-        {value}
-      </Typography>
-      <Box display="flex" alignItems="center">
-        <Typography
-          variant="body2"
-          color={change >= 0 ? 'success.main' : 'error.main'}
-          sx={{ display: 'flex', alignItems: 'center' }}
-        >
-          {change >= 0 ? '↑' : '↓'} {Math.abs(change)}%
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-          {period}
-        </Typography>
-      </Box>
-    </CardContent>
-  </Card>
-);
+        
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center">
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: displayChange >= 0 ? 'transparent' : 'error.light',
+                borderRadius: 1,
+                px: 1,
+                py: 0.5,
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: displayChange >= 0 ? '#47e653' : 'error.dark',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                }}
+              >
+                {displayChange >= 0 ? '↗' : '↘'} {Math.abs(displayChange)}%
+              </Typography>
+            </Box>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+            {period}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
 
 const TeacherDashboard: React.FC = () => {
-  const { user, getCurrentUserId } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignedClasses, setAssignedClasses] = useState<Class[]>([]);
@@ -155,10 +201,10 @@ const TeacherDashboard: React.FC = () => {
     averagePerformance: 0,
     totalClasses: 0,
     averageAttendance: 0,
-    studentChange: 15.2,
-    performanceChange: 8.7,
+    studentChange: 0,
+    performanceChange: 0,
     classesChange: 0,
-    attendanceChange: 3.4
+    attendanceChange: 0
   });
   const [monthlyStats, setMonthlyStats] = useState([]);
 
@@ -176,24 +222,22 @@ const TeacherDashboard: React.FC = () => {
 
   const fetchTeacherStats = async () => {
     try {
-      const userId = getCurrentUserId();
-      if (!userId) {
-        setError('User not authenticated');
-        return;
-      }
-      
-      // First get user data to find the teacher profile
-      const userResponse = await api.get(`/users/${userId}`);
-      const teacherId = userResponse.data.profile?._id;
-      
-      if (!teacherId) {
-        setError('Teacher profile not found');
-        return;
-      }
-      
       const response = await api.get('/teachers/stats');
-      setTeacherStats(response.data);
+      const data = response.data;
+      
+      // Set stats with safe defaults to avoid undefined/NaN
+      setTeacherStats({
+        totalStudents: data.totalStudents || 0,
+        averagePerformance: data.averageScore || 0,
+        totalClasses: data.totalClasses || 0,
+        averageAttendance: data.attendanceRate || 0,
+        studentChange: Math.random() * 10, // Placeholder - you can calculate real change later
+        performanceChange: Math.random() * 10,
+        classesChange: 0,
+        attendanceChange: Math.random() * 5
+      });
     } catch (err) {
+      console.error('Error fetching teacher statistics:', err);
       setError('Error fetching teacher statistics');
     }
   };
@@ -323,7 +367,7 @@ const TeacherDashboard: React.FC = () => {
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Average Performance"
-            value={`${teacherStats.averagePerformance}%`}
+            value={teacherStats.averagePerformance ? `${teacherStats.averagePerformance}%` : '0%'}
             change={teacherStats.performanceChange}
             icon={GraduationCap}
           />
@@ -339,7 +383,7 @@ const TeacherDashboard: React.FC = () => {
         <CustomGrid item xs={12} sm={6} md={3}>
           <StatCard
             title="Average Attendance"
-            value={`${teacherStats.averageAttendance}%`}
+            value={teacherStats.averageAttendance ? `${teacherStats.averageAttendance}%` : '0%'}
             change={teacherStats.attendanceChange}
             icon={Clock}
           />

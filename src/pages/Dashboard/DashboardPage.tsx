@@ -3,24 +3,33 @@ import AdminDashboard from './AdminDashboard';
 import TeacherDashboard from './TeacherDashboard';
 import ParentDashboard from './ParentDashboard';
 import StudentDashboard from './StudentDashboard';
-import { CircularProgress, Alert, Box } from '@mui/material';
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuthStore();
   
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <CircularProgress />
-      </Box>
+      <div className="flex items-center justify-center h-64">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p className="ml-3 text-gray-600">Loading dashboard...</p>
+      </div>
     );
   }
   
   if (!user) {
     return (
-      <Box p={3}>
-        <Alert severity="error">Please log in to access the dashboard</Alert>
-      </Box>
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Authentication Required</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>Please log in to access the dashboard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
   
@@ -37,9 +46,18 @@ export default function DashboardPage() {
       return <StudentDashboard />;
     default:
       return (
-        <Box p={3}>
-          <Alert severity="error">Invalid user role: {user.role}</Alert>
-        </Box>
+        <div className="p-6">
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Invalid User Role</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>Your account has an invalid role: {user.role}. Please contact the administrator.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       );
   }
 }

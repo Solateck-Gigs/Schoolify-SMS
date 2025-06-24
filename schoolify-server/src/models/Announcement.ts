@@ -3,38 +3,60 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IAnnouncement extends Document {
   title: string;
   content: string;
-  author: mongoose.Types.ObjectId; // User ID of the author
-  targetRoles: ('all' | 'admin' | 'teacher' | 'parent' | 'student')[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  targetAudience: string[];
+  isActive: boolean;
+  createdBy: mongoose.Types.ObjectId;
+  readBy: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const AnnouncementSchema: Schema = new Schema(
-  {
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    content: {
-      type: String,
-      required: true,
-    },
-    author: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    targetRoles: {
-      type: [String],
-      enum: ['all', 'admin', 'teacher', 'parent', 'student'],
-      default: ['all'],
-    },
+const AnnouncementSchema = new Schema<IAnnouncement>({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 200
   },
-  { timestamps: true }
-);
+  content: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 2000
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
+  },
+  targetAudience: [{
+    type: String,
+    enum: ['all', 'students', 'teachers', 'parents', 'admins'],
+    required: true
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  readBy: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }]
+}, {
+  timestamps: true
+});
 
-AnnouncementSchema.index({ author: 1 });
-AnnouncementSchema.index({ targetRoles: 1 });
+// Indexes for better query performance
+AnnouncementSchema.index({ createdAt: -1 });
+AnnouncementSchema.index({ targetAudience: 1 });
+AnnouncementSchema.index({ isActive: 1 });
+AnnouncementSchema.index({ priority: 1 });
+AnnouncementSchema.index({ readBy: 1 });
 
 export const Announcement = mongoose.model<IAnnouncement>('Announcement', AnnouncementSchema); 

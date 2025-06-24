@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
-import { Student } from '../models/Student';
-import { Teacher } from '../models/Teacher';
+import { User } from '../models/User';
 import { Fee } from '../models/Fee';
 import { Attendance } from '../models/Attendance';
 import { Mark } from '../models/Mark';
@@ -14,8 +13,8 @@ export const getOverallStats = async (req: Request, res: Response) => {
       totalFeesCollected,
       attendanceStats
     ] = await Promise.all([
-      Student.countDocuments(),
-      Teacher.countDocuments(),
+      User.countDocuments({ role: 'student' }),
+      User.countDocuments({ role: 'teacher' }),
       Fee.aggregate([
         {
           $group: {
@@ -66,9 +65,10 @@ export const getMonthlyStats = async (req: Request, res: Response) => {
       monthlyFees,
       monthlyAttendance
     ] = await Promise.all([
-      Student.aggregate([
+      User.aggregate([
         {
           $match: {
+            role: 'student',
             createdAt: { $gte: startDate, $lte: endDate }
           }
         },
@@ -83,9 +83,10 @@ export const getMonthlyStats = async (req: Request, res: Response) => {
         },
         { $sort: { '_id.year': 1, '_id.month': 1 } }
       ]),
-      Teacher.aggregate([
+      User.aggregate([
         {
           $match: {
+            role: 'teacher',
             createdAt: { $gte: startDate, $lte: endDate }
           }
         },
@@ -139,7 +140,7 @@ export const getMonthlyStats = async (req: Request, res: Response) => {
 
     // Process monthly attendance data
     const attendanceByMonth = new Map();
-    monthlyAttendance.forEach(record => {
+    monthlyAttendance.forEach((record: any) => {
       const key = `${record._id.year}-${record._id.month}`;
       if (!attendanceByMonth.has(key)) {
         attendanceByMonth.set(key, { total: 0, present: 0 });
@@ -161,15 +162,15 @@ export const getMonthlyStats = async (req: Request, res: Response) => {
       const key = `${year}-${month}`;
 
       const studentCount = studentRegistrations.find(
-        r => r._id.year === year && r._id.month === month
+        (r: any) => r._id.year === year && r._id.month === month
       )?.count || 0;
 
       const teacherCount = teacherRegistrations.find(
-        r => r._id.year === year && r._id.month === month
+        (r: any) => r._id.year === year && r._id.month === month
       )?.count || 0;
 
       const feesCollected = monthlyFees.find(
-        r => r._id.year === year && r._id.month === month
+        (r: any) => r._id.year === year && r._id.month === month
       )?.total || 0;
 
       const attendance = attendanceByMonth.get(key) || { total: 0, present: 0 };

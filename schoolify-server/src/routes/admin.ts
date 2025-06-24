@@ -1,7 +1,5 @@
 import { Request, Response, Router } from 'express';
 import { User } from '../models/User';
-import { Student } from '../models/Student';
-import { Teacher } from '../models/Teacher';
 import { Class } from '../models/Class';
 import { Fee } from '../models/Fee';
 import { authenticateToken, requireRole } from '../middleware/auth';
@@ -12,10 +10,9 @@ const router = Router();
 // Get all students (admin only)
 router.get('/students', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
-    const students = await Student.find()
-      .populate('user', 'firstName lastName email')
+    const students = await User.find({ role: 'student' })
       .populate('class', 'name section academicYear')
-      .populate('parent', 'user');
+      .select('-password');
     
     res.json(students);
   } catch (error) {
@@ -27,9 +24,9 @@ router.get('/students', authenticateToken, requireRole(['admin', 'super_admin'])
 // Get all teachers (admin only)
 router.get('/teachers', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
-    const teachers = await Teacher.find()
-      .populate('user', 'firstName lastName email')
-      .populate('assignedClasses', 'name section academicYear');
+    const teachers = await User.find({ role: 'teacher' })
+      .populate('assignedClasses', 'name section academicYear')
+      .select('-password');
     
     res.json(teachers);
   } catch (error) {
@@ -42,8 +39,7 @@ router.get('/teachers', authenticateToken, requireRole(['admin', 'super_admin'])
 router.get('/classes', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const classes = await Class.find()
-      .populate('teacher', 'user')
-      .populate('students', 'user');
+      .populate('teacher', 'firstName lastName email');
     
     res.json(classes);
   } catch (error) {
@@ -56,7 +52,7 @@ router.get('/classes', authenticateToken, requireRole(['admin', 'super_admin']),
 router.get('/fees', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
   try {
     const fees = await Fee.find()
-      .populate('student', 'user');
+      .populate('student', 'firstName lastName admissionNumber');
     
     res.json(fees);
   } catch (error) {
@@ -73,8 +69,8 @@ router.get('/students/performance', authenticateToken, requireRole(['admin', 'su
       {
         student: {
           _id: '1',
-          first_name: 'John',
-          last_name: 'Doe',
+          firstName: 'John',
+          lastName: 'Doe',
           class: { name: 'Grade 10', section: 'A' }
         },
         performance: {
@@ -86,8 +82,8 @@ router.get('/students/performance', authenticateToken, requireRole(['admin', 'su
       {
         student: {
           _id: '2',
-          first_name: 'Jane',
-          last_name: 'Smith',
+          firstName: 'Jane',
+          lastName: 'Smith',
           class: { name: 'Grade 10', section: 'A' }
         },
         performance: {
@@ -113,8 +109,8 @@ router.get('/students/attendance', authenticateToken, requireRole(['admin', 'sup
       {
         student: {
           _id: '1',
-          first_name: 'John',
-          last_name: 'Doe',
+          firstName: 'John',
+          lastName: 'Doe',
           class: { name: 'Grade 10', section: 'A' }
         },
         attendance: {
@@ -127,8 +123,8 @@ router.get('/students/attendance', authenticateToken, requireRole(['admin', 'sup
       {
         student: {
           _id: '2',
-          first_name: 'Jane',
-          last_name: 'Smith',
+          firstName: 'Jane',
+          lastName: 'Smith',
           class: { name: 'Grade 10', section: 'A' }
         },
         attendance: {

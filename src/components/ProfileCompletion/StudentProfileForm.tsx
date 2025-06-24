@@ -35,21 +35,22 @@ export default function StudentProfileForm({ onSubmit }: StudentProfileFormProps
           id="grade"
           {...register('grade', { required: 'Grade is required' })}
           className="mt-1"
-        >
-          <option value="">Select Grade</option>
-          <option value="1">Grade 1</option>
-          <option value="2">Grade 2</option>
-          <option value="3">Grade 3</option>
-          <option value="4">Grade 4</option>
-          <option value="5">Grade 5</option>
-          <option value="6">Grade 6</option>
-          <option value="7">Grade 7</option>
-          <option value="8">Grade 8</option>
-          <option value="9">Grade 9</option>
-          <option value="10">Grade 10</option>
-          <option value="11">Grade 11</option>
-          <option value="12">Grade 12</option>
-        </Select>
+          options={[
+            { value: '', label: 'Select Grade' },
+            { value: '1', label: 'Grade 1' },
+            { value: '2', label: 'Grade 2' },
+            { value: '3', label: 'Grade 3' },
+            { value: '4', label: 'Grade 4' },
+            { value: '5', label: 'Grade 5' },
+            { value: '6', label: 'Grade 6' },
+            { value: '7', label: 'Grade 7' },
+            { value: '8', label: 'Grade 8' },
+            { value: '9', label: 'Grade 9' },
+            { value: '10', label: 'Grade 10' },
+            { value: '11', label: 'Grade 11' },
+            { value: '12', label: 'Grade 12' }
+          ]}
+        />
         {errors.grade && (
           <p className="mt-1 text-sm text-red-600">{errors.grade.message}</p>
         )}
@@ -61,13 +62,14 @@ export default function StudentProfileForm({ onSubmit }: StudentProfileFormProps
           id="section"
           {...register('section', { required: 'Section is required' })}
           className="mt-1"
-        >
-          <option value="">Select Section</option>
-          <option value="A">Section A</option>
-          <option value="B">Section B</option>
-          <option value="C">Section C</option>
-          <option value="D">Section D</option>
-        </Select>
+          options={[
+            { value: '', label: 'Select Section' },
+            { value: 'A', label: 'Section A' },
+            { value: 'B', label: 'Section B' },
+            { value: 'C', label: 'Section C' },
+            { value: 'D', label: 'Section D' }
+          ]}
+        />
         {errors.section && (
           <p className="mt-1 text-sm text-red-600">{errors.section.message}</p>
         )}
@@ -131,17 +133,18 @@ export default function StudentProfileForm({ onSubmit }: StudentProfileFormProps
           id="bloodGroup"
           {...register('bloodGroup', { required: 'Blood group is required' })}
           className="mt-1"
-        >
-          <option value="">Select Blood Group</option>
-          <option value="A+">A+</option>
-          <option value="A-">A-</option>
-          <option value="B+">B+</option>
-          <option value="B-">B-</option>
-          <option value="O+">O+</option>
-          <option value="O-">O-</option>
-          <option value="AB+">AB+</option>
-          <option value="AB-">AB-</option>
-        </Select>
+          options={[
+            { value: '', label: 'Select Blood Group' },
+            { value: 'A+', label: 'A+' },
+            { value: 'A-', label: 'A-' },
+            { value: 'B+', label: 'B+' },
+            { value: 'B-', label: 'B-' },
+            { value: 'O+', label: 'O+' },
+            { value: 'O-', label: 'O-' },
+            { value: 'AB+', label: 'AB+' },
+            { value: 'AB-', label: 'AB-' }
+          ]}
+        />
         {errors.bloodGroup && (
           <p className="mt-1 text-sm text-red-600">{errors.bloodGroup.message}</p>
         )}

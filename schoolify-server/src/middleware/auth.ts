@@ -50,9 +50,12 @@ export const authenticateToken = (
 
 export const requireRole = (allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
+    console.log('Role check - User role:', req.user.role, 'Allowed roles:', allowedRoles);
     if (!allowedRoles.includes(req.user.role)) {
+      console.log('Role check failed - Access denied');
       return res.status(403).json({ error: 'Forbidden: Insufficient role' });
     }
+    console.log('Role check passed');
     next();
   };
 }; 

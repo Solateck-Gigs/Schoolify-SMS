@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../lib/store';
-import { Card, CardHeader, CardContent } from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import Select from '../components/ui/Select';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../components/ui/Table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import { useAuthStore } from '../../lib/store';
+import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../../components/ui/Table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { Search, Plus, Edit, Eye, Trash2, Users, GraduationCap, Phone, Mail } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { apiFetch } from '../lib/api';
+import { apiFetch } from '../../lib/api';
 
 interface Student {
   _id: string;
@@ -110,9 +110,7 @@ export default function StudentsPage() {
 
   const fetchClasses = async () => {
     try {
-      // Teachers should fetch their assigned classes, admins fetch all classes
-      const endpoint = isTeacher ? '/teachers/classes' : '/classes';
-      const classesData = await apiFetch(endpoint) as Class[];
+      const classesData = await apiFetch('/classes') as Class[];
       setClasses(classesData);
     } catch (error) {
       console.error('Error fetching classes:', error);

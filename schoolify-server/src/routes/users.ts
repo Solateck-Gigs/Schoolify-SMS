@@ -1,8 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { User } from '../models/User';
-import { Teacher } from '../models/Teacher';
-import { Student } from '../models/Student';
-import { Parent } from '../models/Parent';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
 
@@ -33,34 +30,17 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized to view this user data' });
     }
 
-    // Get user data
+    // Get user data with all role-specific fields
     const user = await User.findById(targetUserId).select('-password');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get role-specific profile data
-    let profileData = null;
-    switch (user.role) {
-      case 'teacher':
-        profileData = await Teacher.findOne({ user: user._id })
-          .populate('assignedClasses', 'name section academicYear');
-        break;
-      case 'student':
-        profileData = await Student.findOne({ user: user._id })
-          .populate('class', 'name section academicYear')
-          .populate('parent', 'user');
-        break;
-      case 'parent':
-        profileData = await Parent.findOne({ user: user._id })
-          .populate('children', 'user admissionNumber');
-        break;
-    }
-
+    // All profile data is now in the User model, so profile is always complete
     res.json({
       user,
-      profile: profileData,
-      isProfileComplete: !!profileData
+      profile: user,
+      isProfileComplete: true
     });
   } catch (error) {
     console.error('Error fetching user:', error);

@@ -1,9 +1,10 @@
 import { Request, Response, Router } from 'express';
 import { Class, IClass } from '../models/Class';
-import { Student } from '../models/Student';
+import { User } from '../models/User';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
 import { Types } from 'mongoose';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.get('/details/:id', authenticateToken, async (req: Request, res: Response
 
     // Check if user has permission to view this class
     const isAdmin = ['admin', 'super_admin'].includes(user.role);
-    const isClassTeacher = user.role === 'teacher' && classData.teacher._id.toString() === user._id.toString();
+    const isClassTeacher = user.role === 'teacher' && classData.teacher && classData.teacher._id.toString() === user._id.toString();
     
     if (!isAdmin && !isClassTeacher) {
       return res.status(403).json({ error: 'Not authorized to view this class' });
@@ -62,8 +63,8 @@ router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async
       description
     } = req.body;
 
-    if (!name || !section || !academicYear || !teacher) {
-      return res.status(400).json({ error: 'Name, section, academic year, and teacher are required' });
+    if (!name || !section || !academicYear) {
+      return res.status(400).json({ error: 'Name, section, and academic year are required' });
     }
 
     // Check if class with same name and section already exists for the academic year
@@ -79,15 +80,47 @@ router.post('/', authenticateToken, requireRole(['admin', 'super_admin']), async
       });
     }
 
-    const newClass = new Class({
+    // Prepare class data
+    const classData: any = {
       name,
       section,
       academicYear,
-      teacher,
       capacity: capacity || 30,
       description: description || ''
-    });
+    };
 
+    // Handle teacher assignment if provided
+    if (teacher) {
+      // Check if teacher is a valid ObjectId
+      if (mongoose.Types.ObjectId.isValid(teacher)) {
+        // Verify teacher exists and has teacher role
+        const teacherUser = await User.findOne({ 
+          _id: teacher, 
+          role: 'teacher' 
+        });
+        if (teacherUser) {
+          classData.teacher = teacher;
+        } else {
+          return res.status(400).json({ error: 'Invalid teacher ID or user is not a teacher' });
+        }
+      } else {
+        // Try to find teacher by user_id_number or employeeId
+        const teacherUser = await User.findOne({
+          role: 'teacher',
+          $or: [
+            { user_id_number: teacher },
+            { employeeId: teacher }
+          ]
+        });
+        if (teacherUser) {
+          classData.teacher = teacherUser._id;
+        } else {
+          return res.status(400).json({ error: 'Teacher not found with the provided ID' });
+        }
+      }
+    }
+
+    const newClass = new Class(classData);
     await newClass.save();
 
     // Populate teacher details before sending response
@@ -142,7 +175,7 @@ router.delete('/details/:id', authenticateToken, requireRole(['admin', 'super_ad
     }
 
     // Check if class has students
-    const studentCount = await Student.countDocuments({ class: classId });
+    const studentCount = await User.countDocuments({ role: 'student', class: classId });
     if (studentCount > 0) {
       return res.status(400).json({
         error: 'Cannot delete class with enrolled students. Please reassign or remove students first.'
@@ -175,16 +208,16 @@ router.get('/stats/:id', authenticateToken, async (req: Request, res: Response) 
 
     // Check permissions
     const isAdmin = ['admin', 'super_admin'].includes(user.role);
-    const isClassTeacher = user.role === 'teacher' && classData.teacher._id.toString() === user._id.toString();
+    const isClassTeacher = user.role === 'teacher' && classData.teacher && classData.teacher._id.toString() === user._id.toString();
     
     if (!isAdmin && !isClassTeacher) {
       return res.status(403).json({ error: 'Not authorized to view class statistics' });
     }
 
     // Get class statistics
-    const totalStudents = await Student.countDocuments({ class: classId });
-    const maleStudents = await Student.countDocuments({ class: classId, gender: 'male' });
-    const femaleStudents = await Student.countDocuments({ class: classId, gender: 'female' });
+    const totalStudents = await User.countDocuments({ role: 'student', class: classId });
+    const maleStudents = await User.countDocuments({ role: 'student', class: classId, gender: 'male' });
+    const femaleStudents = await User.countDocuments({ role: 'student', class: classId, gender: 'female' });
 
     const stats = {
       classInfo: {
@@ -222,15 +255,14 @@ router.get('/students/:id', authenticateToken, async (req: Request, res: Respons
 
     // Check permissions
     const isAdmin = ['admin', 'super_admin'].includes(user.role);
-    const isClassTeacher = user.role === 'teacher' && classData.teacher.toString() === user._id.toString();
+    const isClassTeacher = user.role === 'teacher' && classData.teacher && classData.teacher.toString() === user._id.toString();
     
     if (!isAdmin && !isClassTeacher) {
       return res.status(403).json({ error: 'Not authorized to view class students' });
     }
 
-    const students = await Student.find({ class: classId })
-      .populate('user', 'firstName lastName email')
-      .populate('parent', 'firstName lastName email');
+    const students = await User.find({ role: 'student', class: classId })
+      .select('-password');
 
     res.status(200).json({
       classInfo: {

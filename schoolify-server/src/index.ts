@@ -8,12 +8,15 @@ import classRoutes from './routes/classes';
 import teacherRoutes from './routes/teachers';
 import parentRoutes from './routes/parents';
 import feeRoutes from './routes/fees';
+import attendanceRoutes from './routes/attendance';
 import announcementRoutes from './routes/announcements';
 import messageRoutes from './routes/messages';
 import adminsRoutes from './routes/admins';
 import adminRoutes from './routes/admin';
 import userRoutes from './routes/users';
 import statsRoutes from './routes/stats';
+import marksRoutes from './routes/marks';
+import timetableRoutes from './routes/timetable';
 import { initializeUserWatcher } from './services/userWatcher';
 
 // Load environment variables
@@ -30,14 +33,19 @@ app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/teachers', teacherRoutes);
+app.use('/api/teacher', teacherRoutes);
 app.use('/api/parents', parentRoutes);
+app.use('/api/parent', parentRoutes);
 app.use('/api/fees', feeRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admins', adminsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/marks', marksRoutes);
+app.use('/api/timetable', timetableRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/schoolify')

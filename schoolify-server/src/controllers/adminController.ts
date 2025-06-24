@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { Student } from '../models/Student';
-import { Teacher } from '../models/Teacher';
-import { Parent } from '../models/Parent';
+import { User } from '../models/User';
 import { Mark } from '../models/Mark';
 import { Attendance } from '../models/Attendance';
 import { Fee } from '../models/Fee';
@@ -14,12 +12,12 @@ export const getAllStudentsPerformance = async (req: Request, res: Response) => 
     const { academicYear, term, classId } = req.query;
 
     // Build query based on filters
-    const studentQuery: any = {};
+    const studentQuery: any = { role: 'student' };
     if (classId) studentQuery.class = classId;
 
-    const students = await Student.find(studentQuery)
+    const students = await User.find(studentQuery)
       .populate('class')
-      .populate('parent', 'user firstName lastName');
+      .select('-password');
 
     const studentsData = await Promise.all(students.map(async (student) => {
       // Get marks
@@ -72,12 +70,12 @@ export const getAllStudentsAttendance = async (req: Request, res: Response) => {
     const { startDate, endDate, classId } = req.query;
 
     // Build query based on filters
-    const studentQuery: any = {};
+    const studentQuery: any = { role: 'student' };
     if (classId) studentQuery.class = classId;
 
-    const students = await Student.find(studentQuery)
+    const students = await User.find(studentQuery)
       .populate('class')
-      .populate('parent', 'user firstName lastName');
+      .select('-password');
 
     const studentsData = await Promise.all(students.map(async (student) => {
       // Get attendance records
@@ -140,12 +138,12 @@ export const getAllFeesStatus = async (req: Request, res: Response) => {
     const { academicYear, term, classId } = req.query;
 
     // Build query based on filters
-    const studentQuery: any = {};
+    const studentQuery: any = { role: 'student' };
     if (classId) studentQuery.class = classId;
 
-    const students = await Student.find(studentQuery)
+    const students = await User.find(studentQuery)
       .populate('class')
-      .populate('parent', 'user firstName lastName');
+      .select('-password');
 
     const feesData = await Promise.all(students.map(async (student) => {
       // Get fee records
@@ -193,15 +191,15 @@ export const getClassStatistics = async (req: Request, res: Response) => {
     const { academicYear, term } = req.query;
 
     const classData = await Class.findById(classId)
-      .populate('teacher', 'user firstName lastName');
+      .populate('teacher', 'firstName lastName');
 
     if (!classData) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
     // Get all students in class
-    const students = await Student.find({ class: classId })
-      .populate('parent', 'user firstName lastName');
+    const students = await User.find({ role: 'student', class: classId })
+      .select('-password');
 
     // Get marks for class
     const marksQuery: any = { class: classId };

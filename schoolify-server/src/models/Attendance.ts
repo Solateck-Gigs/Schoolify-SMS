@@ -16,7 +16,7 @@ export interface IAttendance extends Document {
 const AttendanceSchema = new Schema<IAttendance>({
   student: {
     type: Schema.Types.ObjectId,
-    ref: 'Student',
+    ref: 'User',
     required: true
   },
   class: {

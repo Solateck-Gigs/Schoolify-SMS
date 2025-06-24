@@ -4,20 +4,21 @@ import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import AuthPage from './pages/Auth/AuthPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
-import StudentsPage from './pages/Student/StudentsPage';
+import StudentsPage from './pages/StudentsPage';
+import MyChildrenPage from './pages/MyChildrenPage';
+import CreateUsersPage from './pages/CreateUsersPage';
 import FeesPage from './pages/Fee/FeesPage';
 import TimetablePage from './pages/Timetable/TimetablePage';
 import MessagesPage from './pages/Message/MessagesPage';
 import MarksPage from './pages/Marks/MarksPage';
 import AttendancePage from './pages/Attendance/AttendancePage';
 import { useAuthStore } from './lib/store';
-import AnnouncementsPage from './pages/Announcements/AnnouncementsPage';
-import CreateUserPage from './pages/CreateUsers/CreateUsers';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import SuggestionsPage from './pages/Suggestions/SuggestionsPage';
 import ProfileSettings from './pages/Settings/ProfileSettings';
 import TeachersPage from './pages/Teachers/TeachersPage';
+import ParentsPage from './pages/Parents/ParentsPage';
 import ClassesPage from './pages/Classes/ClassesPage';
-import { UNSAFE_DataRouterContext, UNSAFE_DataRouterStateContext } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfileCompletionPage from './pages/ProfileCompletionPage';
@@ -151,6 +152,7 @@ function App() {
             }
           />
           
+          {/* Students Management - Admin, Teacher, Super Admin */}
           <Route
             path="/students"
             element={
@@ -162,104 +164,19 @@ function App() {
             }
           />
           
+          {/* My Children - Parents Only */}
           <Route
-            path="/children"
+            path="/my-children"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['parent']}>
-                  <StudentsPage />
+                  <MyChildrenPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
           />
           
-          <Route
-            path="/fees"
-            element={
-              <ProtectedRoute>
-                <FeesPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/timetable"
-            element={
-              <ProtectedRoute>
-                <TimetablePage />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/messages"
-            element={
-              <ProtectedRoute>
-                <MessagesPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/marks"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
-                  <MarksPage />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/attendance"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
-                  <AttendancePage />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/announcements"
-            element={
-              <ProtectedRoute>
-                <AnnouncementsPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/create-users"
-            element={
-              <ProtectedRoute>
-                <RoleRoute allowedRoles={['super_admin', 'admin']}>
-                  <CreateUserPage />
-                </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/suggestions"
-            element={
-              <ProtectedRoute>
-                <SuggestionsPage />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <ProfileSettings />
-              </ProtectedRoute>
-            }
-          />
-          
+          {/* Teachers Management - Admin, Super Admin */}
           <Route
             path="/teachers"
             element={
@@ -271,12 +188,119 @@ function App() {
             }
           />
           
+          {/* Parents Management - Admin, Super Admin */}
+          <Route
+            path="/parents"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin']}>
+                  <ParentsPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Classes Management - Admin, Super Admin, Teacher */}
           <Route
             path="/classes"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
                   <ClassesPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Marks - Super Admin (view only), Admin, Teacher */}
+          <Route
+            path="/marks"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
+                  <MarksPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Attendance - All roles but with different permissions */}
+          <Route
+            path="/attendance"
+            element={
+              <ProtectedRoute>
+                <AttendancePage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Fees - All roles but with different permissions */}
+          <Route
+            path="/fees"
+            element={
+              <ProtectedRoute>
+                <FeesPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Timetable - All roles */}
+          <Route
+            path="/timetable"
+            element={
+              <ProtectedRoute>
+                <TimetablePage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Messages - All roles */}
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <MessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Announcements - All roles */}
+          <Route
+            path="/announcements"
+            element={
+              <ProtectedRoute>
+                <AnnouncementsPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Suggestions - Parents mainly */}
+          <Route
+            path="/suggestions"
+            element={
+              <ProtectedRoute>
+                <SuggestionsPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Settings - All roles */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <ProfileSettings />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Create Users - Super Admin and Admin only */}
+          <Route
+            path="/create-users"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['super_admin', 'admin']}>
+                  <CreateUsersPage />
                 </RoleRoute>
               </ProtectedRoute>
             }
