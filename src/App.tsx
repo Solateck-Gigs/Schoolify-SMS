@@ -15,6 +15,7 @@ import AttendancePage from './pages/Attendance/AttendancePage';
 import { useAuthStore } from './lib/store';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import SuggestionsPage from './pages/Suggestions/SuggestionsPage';
+import AdminSuggestionsPage from './pages/Suggestions/AdminSuggestionsPage';
 import ProfileSettings from './pages/Settings/ProfileSettings';
 import TeachersPage from './pages/Teachers/TeachersPage';
 import ParentsPage from './pages/Parents/ParentsPage';
@@ -274,12 +275,26 @@ function App() {
             }
           />
           
-          {/* Suggestions - Parents mainly */}
+          {/* Suggestions - Parents Only */}
           <Route
             path="/suggestions"
             element={
               <ProtectedRoute>
-                <SuggestionsPage />
+                <RoleRoute allowedRoles={['parent']}>
+                  <SuggestionsPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Admin Suggestions - Admin and Super Admin Only */}
+          <Route
+            path="/admin-suggestions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'super_admin']}>
+                  <AdminSuggestionsPage />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

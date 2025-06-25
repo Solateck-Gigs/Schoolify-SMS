@@ -27,11 +27,14 @@ router.get('/parent/children', authenticate, authorize(['parent']), parentContro
 router.get('/parent/child/:childId/performance', authenticate, authorize(['parent']), parentController.getChildPerformance);
 router.get('/parent/child/:childId/attendance', authenticate, authorize(['parent']), parentController.getChildAttendance);
 router.get('/parent/child/:childId/fees', authenticate, authorize(['parent']), parentController.getChildFees);
+router.get('/parent/suggestions', authenticate, authorize(['parent']), parentController.getSuggestions);
+router.post('/parent/suggestions', authenticate, authorize(['parent']), parentController.createSuggestion);
 
 // Admin routes
 router.get('/admin/students/performance', authenticate, authorize(['admin']), adminController.getAllStudentsPerformance);
 router.get('/admin/students/attendance', authenticate, authorize(['admin']), adminController.getAllStudentsAttendance);
 router.get('/admin/fees/status', authenticate, authorize(['admin']), adminController.getAllFeesStatus);
 router.get('/admin/class/:classId/statistics', authenticate, authorize(['admin']), adminController.getClassStatistics);
+router.get('/admin/suggestions', authenticate, authorize(['admin', 'super_admin']), adminController.getSuggestions);
 
 export default router; 

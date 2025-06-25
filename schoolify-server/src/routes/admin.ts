@@ -4,6 +4,7 @@ import { Class } from '../models/Class';
 import { Fee } from '../models/Fee';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
+import * as adminController from '../controllers/adminController';
 
 const router = Router();
 
@@ -60,6 +61,9 @@ router.get('/fees', authenticateToken, requireRole(['admin', 'super_admin']), as
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Get all suggestions (admin only)
+router.get('/suggestions', authenticateToken, requireRole(['admin', 'super_admin']), adminController.getSuggestions);
 
 // Get student performance data (admin only)
 router.get('/students/performance', authenticateToken, requireRole(['admin', 'super_admin']), async (req: Request, res: Response) => {
