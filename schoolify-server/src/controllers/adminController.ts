@@ -5,6 +5,8 @@ import { Mark } from '../models/Mark';
 import { Attendance } from '../models/Attendance';
 import { Fee } from '../models/Fee';
 import { Class } from '../models/Class';
+import { Message } from '../models/Message';
+import { AuthRequest } from '../types/express';
 
 // Get all students with their performance
 export const getAllStudentsPerformance = async (req: Request, res: Response) => {
@@ -283,5 +285,35 @@ export const getClassStatistics = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error fetching class statistics' });
+  }
+};
+
+// Get all suggestions sent to admin
+export const getSuggestions = async (req: Request, res: Response) => {
+  try {
+    console.log('Admin getSuggestions controller called');
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      console.log('User not authenticated in getSuggestions');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    console.log('Authenticated user in getSuggestions:', user._id, user.role);
+
+    // Find all suggestion/question type messages
+    const suggestions = await Message.find({
+      type: { $in: ['suggestion', 'question'] }
+    })
+    .populate([
+      { path: 'sender', select: 'firstName lastName role email user_id_number' },
+      { path: 'receiver', select: 'firstName lastName role email user_id_number' },
+    ])
+    .sort({ created_at: -1 });
+
+    console.log(`Found ${suggestions.length} suggestions`);
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error fetching admin suggestions:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 }; 

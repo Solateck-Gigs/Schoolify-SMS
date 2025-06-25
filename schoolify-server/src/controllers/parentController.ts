@@ -4,6 +4,8 @@ import { User } from '../models/User';
 import { Mark } from '../models/Mark';
 import { Attendance } from '../models/Attendance';
 import { Fee } from '../models/Fee';
+import { Message } from '../models/Message';
+import { AuthRequest } from '../types/express';
 
 // Get all children of a parent
 export const getChildren = async (req: Request, res: Response) => {
@@ -203,5 +205,93 @@ export const getChildFees = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error fetching child\'s fees' });
+  }
+};
+
+// Get suggestions made by the parent
+export const getSuggestions = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Find all suggestions made by this parent
+    const suggestions = await Message.find({
+      sender: user._id,
+      type: { $in: ['suggestion', 'question'] }
+    })
+    .populate([
+      { path: 'sender', select: 'firstName lastName role email user_id_number' },
+      { path: 'receiver', select: 'firstName lastName role email user_id_number' },
+    ])
+    .sort({ created_at: -1 });
+
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error fetching parent suggestions:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Create a new suggestion
+export const createSuggestion = async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { subject, content, type } = req.body;
+
+    if (!content || !subject) {
+      return res.status(400).json({ error: 'Subject and content are required' });
+    }
+
+    // Get an admin user to receive the suggestion
+    const admin = await User.findOne({ 
+      role: { $in: ['admin', 'super_admin'] } 
+    });
+
+    if (!admin) {
+      return res.status(500).json({ error: 'No admin found to receive suggestion' });
+    }
+
+    // Create new suggestion message
+    const newSuggestion = new Message({
+      sender: user._id,
+      receiver: admin._id,
+      subject,
+      content,
+      type: type || 'suggestion',
+      read_by_receiver: false
+    });
+
+    await newSuggestion.save();
+
+    const populatedSuggestion = await newSuggestion.populate([
+      { path: 'sender', select: 'firstName lastName role email user_id_number' },
+      { path: 'receiver', select: 'firstName lastName role email user_id_number' },
+    ]);
+
+    // Emit socket event for new suggestion if io is available
+    if (req.app.get('io')) {
+      const io = req.app.get('io');
+      
+      // Get all admin users
+      const adminUsers = await User.find({ 
+        role: { $in: ['admin', 'super_admin'] } 
+      }).select('_id');
+      
+      // Emit to all admin users
+      adminUsers.forEach((admin) => {
+        io.to(admin._id.toString()).emit('newSuggestion', populatedSuggestion);
+      });
+    }
+
+    res.status(201).json(populatedSuggestion);
+  } catch (error) {
+    console.error('Error creating suggestion:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 }; 

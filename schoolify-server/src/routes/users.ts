@@ -16,6 +16,58 @@ router.get('/', authenticateToken, requireRole(['admin']), async (req: Request, 
   }
 });
 
+// Get users for chat based on role restrictions
+router.get('/chat-contacts', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    console.log("User requesting chat contacts:", user.role, user._id);
+
+    // For debugging purposes, let's get all users first
+    const allUsers = await User.find({})
+      .select('_id firstName lastName role email user_id_number')
+      .lean();
+    
+    console.log("Total users in database:", allUsers.length);
+    
+    let contacts = [];
+    
+    // Apply role-based restrictions
+    switch (user.role) {
+      case 'parent':
+        // Parents can only chat with teachers
+        contacts = allUsers.filter(u => u.role === 'teacher' && u._id.toString() !== user._id.toString());
+        break;
+      case 'teacher':
+        // Teachers can chat with parents and admin
+        contacts = allUsers.filter(u => 
+          (u.role === 'parent' || u.role === 'admin' || u.role === 'super_admin') && 
+          u._id.toString() !== user._id.toString()
+        );
+        break;
+      case 'admin':
+      case 'super_admin':
+        // Admins can chat with teachers
+        contacts = allUsers.filter(u => 
+          u.role === 'teacher' && 
+          u._id.toString() !== user._id.toString()
+        );
+        break;
+      default:
+        return res.status(403).json({ error: 'Your role does not have chat permissions' });
+    }
+
+    console.log("Filtered contacts for role", user.role, ":", contacts.length);
+    res.json(contacts);
+  } catch (error) {
+    console.error('Error fetching chat contacts:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get user by ID with role-specific profile data
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -85,6 +137,21 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
     res.json(updatedUser);
   } catch (error) {
     console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all admin users
+router.get('/admins', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    // Find all users with role 'admin' or 'super_admin'
+    const admins = await User.find({
+      role: { $in: ['admin', 'super_admin'] }
+    }).select('_id firstName lastName email role');
+
+    res.json(admins);
+  } catch (error) {
+    console.error('Error fetching admin users:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
