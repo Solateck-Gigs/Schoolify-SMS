@@ -30,69 +30,88 @@ interface AttendanceResults {
   inactive: InactiveResult[];
 }
 
-// Get attendance for a specific class on a given date
+// Get attendance records for a class
 export const getClassAttendance = async (req: Request, res: Response) => {
   try {
-    const { classId, date } = req.params;
-    const teacherId = req.user!._id;
-
-    // Verify teacher is assigned to this class
-    const teacher = await User.findOne({ 
-      _id: teacherId, 
-      role: 'teacher',
-      assignedClasses: new mongoose.Types.ObjectId(classId)
-    });
-
-    if (!teacher) {
-      return res.status(403).json({ error: 'Not authorized to view attendance for this class' });
+    const { classId, date } = req.query;
+    
+    if (!classId) {
+      return res.status(400).json({ error: 'Class ID is required' });
     }
 
-    // Get all students in this class
-    const students = await User.find({ 
-      role: 'student', 
-      class: classId,
-      // We still get inactive students to show their status
-    }).select('firstName lastName user_id_number isActive');
+    const query: any = { class: classId };
+    
+    if (date) {
+      // If date is provided, get attendance for that specific date
+      const targetDate = new Date(date as string);
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      query.date = {
+        $gte: startOfDay,
+        $lte: endOfDay
+      };
+    } else {
+      // If no date is provided, get today's attendance
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      query.date = {
+        $gte: startOfDay,
+        $lte: endOfDay
+      };
+    }
 
-    // Get attendance records for the specified date
-    const attendanceDate = date ? new Date(date) : new Date();
-    attendanceDate.setUTCHours(0, 0, 0, 0);
-    const endDate = new Date(attendanceDate);
-    endDate.setUTCHours(23, 59, 59, 999);
+    // Get attendance records
+    const attendanceRecords = await Attendance.find(query)
+      .populate('student', 'firstName lastName admissionNumber')
+      .populate('recordedBy', 'firstName lastName')
+      .sort({ date: -1 });
 
-    const attendanceRecords = await Attendance.find({
-      class: classId,
-      date: { 
-        $gte: attendanceDate,
-        $lte: endDate
-      }
+    // Get all students in the class
+    const students = await User.find({ class: classId, role: 'student', isActive: true })
+      .select('_id firstName lastName admissionNumber')
+      .sort({ lastName: 1, firstName: 1 });
+
+    // Create a map of student IDs to attendance records
+    const attendanceMap = new Map();
+    attendanceRecords.forEach(record => {
+      attendanceMap.set(record.student._id.toString(), record);
     });
 
-    // Map attendance records to students
-    const studentAttendance = students.map(student => {
-      const record = attendanceRecords.find(
-        record => record.student.toString() === student._id.toString()
-      );
-      
+    // Create response with attendance status for all students
+    const response = students.map(student => {
+      const record = attendanceMap.get(student._id.toString());
       return {
-        studentId: student._id,
-        name: `${student.firstName} ${student.lastName}`,
-        studentNumber: student.user_id_number,
-        isActive: student.isActive,
-        status: record ? record.status : 'not-marked',
-        attendanceId: record ? record._id : null,
-        reason: record ? record.reason : null
+        _id: record?._id || null,
+        student: {
+          _id: student._id,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          admissionNumber: student.admissionNumber
+        },
+        status: record?.status || null,
+        date: record?.date || null,
+        reason: record?.reason || null,
+        recordedBy: record?.recordedBy ? {
+          _id: record.recordedBy._id,
+          firstName: record.recordedBy.firstName,
+          lastName: record.recordedBy.lastName
+        } : null
       };
     });
 
-    res.json({
-      classId,
-      date: attendanceDate,
-      students: studentAttendance
-    });
+    res.json(response);
   } catch (error) {
-    console.error('Error fetching class attendance:', error);
-    res.status(500).json({ error: 'Failed to fetch attendance data' });
+    console.error('Error getting class attendance:', error);
+    res.status(500).json({ error: 'Error getting class attendance' });
   }
 };
 
@@ -153,7 +172,7 @@ export const getStudentAttendance = async (req: Request, res: Response) => {
 
     const attendance = await Attendance.find(query)
       .populate('class', 'name')
-      .populate('marked_by', 'firstName lastName')
+      .populate('recordedBy', 'firstName lastName')
       .sort({ date: -1 });
 
     res.json(attendance);
@@ -163,123 +182,63 @@ export const getStudentAttendance = async (req: Request, res: Response) => {
   }
 };
 
-// Mark attendance for students in a class
+// Mark attendance for a student
 export const markAttendance = async (req: Request, res: Response) => {
   try {
-    const { classId } = req.params;
+    const { studentId, classId, status, reason, date } = req.body;
     const teacherId = req.user!._id;
-    const { date, attendanceData, academicYear, term } = req.body;
 
-    if (!date || !Array.isArray(attendanceData) || !academicYear || !term) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Validate status
+    if (!['present', 'absent', 'tardy'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be present, absent, or tardy' });
     }
 
-    // Verify teacher is assigned to this class
-    const teacher = await User.findOne({ 
-      _id: teacherId, 
-      role: 'teacher',
-      assignedClasses: new mongoose.Types.ObjectId(classId)
+    // Parse date or use current date
+    const attendanceDate = date ? new Date(date) : new Date();
+
+    // Check if an attendance record already exists for this student on this date
+    const existingRecord = await Attendance.findOne({
+      student: studentId,
+      date: {
+        $gte: new Date(attendanceDate.setHours(0, 0, 0, 0)),
+        $lte: new Date(attendanceDate.setHours(23, 59, 59, 999))
+      }
     });
 
-    if (!teacher) {
-      return res.status(403).json({ error: 'Not authorized to mark attendance for this class' });
+    if (existingRecord) {
+      // Update existing record
+      existingRecord.status = status;
+      existingRecord.reason = reason || existingRecord.reason;
+      existingRecord.recordedBy = teacherId;
+      await existingRecord.save();
+      
+      return res.json({
+        message: 'Attendance updated successfully',
+        attendance: existingRecord
+      });
     }
 
-    // Format date
-    const attendanceDate = new Date(date);
-    attendanceDate.setUTCHours(0, 0, 0, 0);
+    // Create new attendance record
+    const newAttendance = new Attendance({
+      student: studentId,
+      class: classId,
+      date: attendanceDate,
+      status,
+      reason,
+      term: req.body.term || 'Term 1', // Default to Term 1 if not provided
+      academicYear: req.body.academicYear || '2023-2024', // Default to current academic year if not provided
+      recordedBy: teacherId
+    });
 
-    // Process attendance records
-    const results: AttendanceResults = {
-      success: [],
-      failed: [],
-      inactive: []
-    };
+    await newAttendance.save();
 
-    for (const record of attendanceData) {
-      const { studentId, status, reason } = record;
-      
-      // Check if student is active
-      const student = await User.findOne({ _id: studentId, role: 'student' });
-      if (!student) {
-        results.failed.push({
-          studentId,
-          error: 'Student not found'
-        });
-        continue;
-      }
-      
-      if (!student.isActive) {
-        results.inactive.push({
-          studentId,
-          name: `${student.firstName} ${student.lastName}`,
-          message: 'Cannot mark attendance for inactive students'
-        });
-        continue;
-      }
-
-      try {
-        // Check if attendance record already exists for this date and student
-        const existingRecord = await Attendance.findOne({
-          student: studentId,
-          class: classId,
-          date: {
-            $gte: attendanceDate,
-            $lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
-          }
-        });
-
-        if (existingRecord) {
-          // Update existing record
-          existingRecord.status = status;
-          existingRecord.reason = reason;
-          await existingRecord.save();
-          
-          results.success.push({
-            studentId,
-            name: `${student.firstName} ${student.lastName}`,
-            status,
-            updated: true
-          });
-        } else {
-          // Create new record
-          const newAttendance = new Attendance({
-            student: studentId,
-            class: classId,
-            date: attendanceDate,
-            status,
-            academic_year: academicYear,
-            term,
-            marked_by: teacherId,
-            reason
-          });
-          
-          await newAttendance.save();
-          
-          results.success.push({
-            studentId,
-            name: `${student.firstName} ${student.lastName}`,
-            status,
-            updated: false
-          });
-        }
-      } catch (error) {
-        console.error(`Error marking attendance for student ${studentId}:`, error);
-        results.failed.push({
-          studentId,
-          name: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
-          error: 'Database error'
-        });
-      }
-    }
-
-    res.status(200).json({
-      message: 'Attendance processed',
-      results
+    res.status(201).json({
+      message: 'Attendance marked successfully',
+      attendance: newAttendance
     });
   } catch (error) {
     console.error('Error marking attendance:', error);
-    res.status(500).json({ error: 'Failed to mark attendance' });
+    res.status(500).json({ error: 'Error marking attendance' });
   }
 };
 
@@ -301,7 +260,7 @@ export const updateAttendance = async (req: Request, res: Response) => {
     }
 
     // Verify teacher is authorized (either created the record or is assigned to the class)
-    const isCreator = attendance.marked_by.toString() === teacherId.toString();
+    const isCreator = attendance.recordedBy.toString() === teacherId.toString();
     
     if (!isCreator) {
       const isAssignedTeacher = await User.findOne({
@@ -329,7 +288,7 @@ export const updateAttendance = async (req: Request, res: Response) => {
     if (reason !== undefined) {
       attendance.reason = reason;
     }
-    attendance.marked_by = teacherId;  // Update who made the change
+    attendance.recordedBy = teacherId;  // Update who made the change
     
     await attendance.save();
     
@@ -343,47 +302,55 @@ export const updateAttendance = async (req: Request, res: Response) => {
   }
 };
 
-// Get attendance summary for a student
-export const getStudentAttendanceSummary = async (req: Request, res: Response) => {
+// Get attendance statistics for a student
+export const getStudentAttendanceStats = async (req: Request, res: Response) => {
   try {
-    const { studentId } = req.params;
-    const { academicYear, term } = req.query;
+    const { studentId, term, academicYear } = req.query;
     
+    if (!studentId) {
+      return res.status(400).json({ error: 'Student ID is required' });
+    }
+
     // Build query
     const query: any = { student: studentId };
-    
-    if (academicYear) {
-      query.academic_year = academicYear;
-    }
     
     if (term) {
       query.term = term;
     }
+    
+    if (academicYear) {
+      query.academicYear = academicYear;
+    }
 
-    const attendance = await Attendance.find(query);
+    // Get attendance records
+    const attendance = await Attendance.find(query).sort({ date: -1 });
     
     // Calculate summary
-    const totalDays = attendance.length;
+    const total = attendance.length;
     const present = attendance.filter(a => a.status === 'present').length;
     const absent = attendance.filter(a => a.status === 'absent').length;
-    const late = attendance.filter(a => a.status === 'late').length;
+    const tardy = attendance.filter(a => a.status === 'tardy').length;
     
     // Calculate attendance rate
-    const attendanceRate = totalDays > 0 ? ((present + (late * 0.5)) / totalDays) * 100 : 0;
+    const attendanceRate = total > 0 ? ((present + (tardy * 0.5)) / total) * 100 : 0;
     
     res.json({
       studentId,
       summary: {
-        totalDays,
+        totalDays: total,
         present,
         absent,
-        late,
-        attendanceRate: parseFloat(attendanceRate.toFixed(2))
+        tardy,
+        attendanceRate: Math.round(attendanceRate)
       },
-      records: attendance
+      records: attendance.map(record => ({
+        date: record.date,
+        status: record.status,
+        reason: record.reason
+      }))
     });
   } catch (error) {
-    console.error('Error getting attendance summary:', error);
-    res.status(500).json({ error: 'Failed to fetch attendance summary' });
+    console.error('Error getting student attendance stats:', error);
+    res.status(500).json({ error: 'Error getting student attendance stats' });
   }
 }; 

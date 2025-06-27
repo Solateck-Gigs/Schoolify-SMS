@@ -7,7 +7,6 @@ export interface ITimetable extends Document {
   dayOfWeek: number; // 1-5 (Monday-Friday)
   startTime: string; // Format: "HH:mm"
   endTime: string; // Format: "HH:mm"
-  room: string;
   academicYear: string;
   term: 'Term 1' | 'Term 2' | 'Term 3';
   createdBy: mongoose.Types.ObjectId;
@@ -47,11 +46,6 @@ const TimetableSchema = new Schema<ITimetable>({
     required: true,
     match: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/ // HH:mm format
   },
-  room: {
-    type: String,
-    required: true,
-    trim: true
-  },
   academicYear: {
     type: String,
     required: true,
@@ -71,7 +65,7 @@ const TimetableSchema = new Schema<ITimetable>({
   timestamps: true
 });
 
-// Ensure no time conflicts for the same class, teacher, or room on the same day
+// Ensure no time conflicts for the same class or teacher on the same day
 TimetableSchema.index(
   { class: 1, dayOfWeek: 1, startTime: 1, endTime: 1 },
   { unique: true }
@@ -79,11 +73,6 @@ TimetableSchema.index(
 
 TimetableSchema.index(
   { teacher: 1, dayOfWeek: 1, startTime: 1, endTime: 1 },
-  { unique: true }
-);
-
-TimetableSchema.index(
-  { room: 1, dayOfWeek: 1, startTime: 1, endTime: 1 },
   { unique: true }
 );
 

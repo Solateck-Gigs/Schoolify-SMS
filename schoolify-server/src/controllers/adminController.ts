@@ -96,10 +96,10 @@ export const getAllStudentsAttendance = async (req: Request, res: Response) => {
         totalDays: attendance.length,
         present: 0,
         absent: 0,
-        late: 0,
+        tardy: 0,
         presentPercentage: 0,
         absentPercentage: 0,
-        latePercentage: 0
+        tardyPercentage: 0
       };
 
       attendance.forEach(record => {
@@ -110,8 +110,8 @@ export const getAllStudentsAttendance = async (req: Request, res: Response) => {
           case 'absent':
             summary.absent++;
             break;
-          case 'late':
-            summary.late++;
+          case 'tardy':
+            summary.tardy++;
             break;
         }
       });
@@ -119,7 +119,7 @@ export const getAllStudentsAttendance = async (req: Request, res: Response) => {
       if (summary.totalDays > 0) {
         summary.presentPercentage = (summary.present / summary.totalDays) * 100;
         summary.absentPercentage = (summary.absent / summary.totalDays) * 100;
-        summary.latePercentage = (summary.late / summary.totalDays) * 100;
+        summary.tardyPercentage = (summary.tardy / summary.totalDays) * 100;
       }
 
       return {
@@ -227,7 +227,7 @@ export const getClassStatistics = async (req: Request, res: Response) => {
         totalDays: attendance.length / students.length,
         averagePresent: 0,
         averageAbsent: 0,
-        averageLate: 0
+        averageTardy: 0
       }
     };
 
@@ -257,7 +257,7 @@ export const getClassStatistics = async (req: Request, res: Response) => {
     // Calculate attendance statistics
     let totalPresent = 0;
     let totalAbsent = 0;
-    let totalLate = 0;
+    let totalTardy = 0;
 
     attendance.forEach(record => {
       switch (record.status) {
@@ -267,8 +267,8 @@ export const getClassStatistics = async (req: Request, res: Response) => {
         case 'absent':
           totalAbsent++;
           break;
-        case 'late':
-          totalLate++;
+        case 'tardy':
+          totalTardy++;
           break;
       }
     });
@@ -276,7 +276,7 @@ export const getClassStatistics = async (req: Request, res: Response) => {
     if (statistics.attendance.totalDays > 0) {
       statistics.attendance.averagePresent = (totalPresent / attendance.length) * 100;
       statistics.attendance.averageAbsent = (totalAbsent / attendance.length) * 100;
-      statistics.attendance.averageLate = (totalLate / attendance.length) * 100;
+      statistics.attendance.averageTardy = (totalTardy / attendance.length) * 100;
     }
 
     res.json({

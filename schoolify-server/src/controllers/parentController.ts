@@ -118,7 +118,7 @@ export const getChildAttendance = async (req: Request, res: Response) => {
     }
 
     const attendance = await Attendance.find(query)
-      .populate('marked_by', 'firstName lastName')
+      .populate('recordedBy', 'firstName lastName')
       .sort({ date: -1 });
 
     // Calculate summary statistics
@@ -126,10 +126,10 @@ export const getChildAttendance = async (req: Request, res: Response) => {
       totalDays: attendance.length,
       present: 0,
       absent: 0,
-      late: 0,
+      tardy: 0,
       presentPercentage: 0,
       absentPercentage: 0,
-      latePercentage: 0
+      tardyPercentage: 0
     };
 
     attendance.forEach(record => {
@@ -140,8 +140,8 @@ export const getChildAttendance = async (req: Request, res: Response) => {
         case 'absent':
           summary.absent++;
           break;
-        case 'late':
-          summary.late++;
+        case 'tardy':
+          summary.tardy++;
           break;
       }
     });
@@ -149,7 +149,7 @@ export const getChildAttendance = async (req: Request, res: Response) => {
     if (summary.totalDays > 0) {
       summary.presentPercentage = (summary.present / summary.totalDays) * 100;
       summary.absentPercentage = (summary.absent / summary.totalDays) * 100;
-      summary.latePercentage = (summary.late / summary.totalDays) * 100;
+      summary.tardyPercentage = (summary.tardy / summary.totalDays) * 100;
     }
 
     res.json({

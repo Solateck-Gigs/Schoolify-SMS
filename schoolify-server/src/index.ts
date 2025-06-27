@@ -374,6 +374,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/marks', marksRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api', require('./routes/api').default);
+app.use('/api/report-cards', require('./routes/reportCards').default);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/schoolify')

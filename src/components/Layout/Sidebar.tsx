@@ -14,7 +14,11 @@ import {
   Bell,
   X,
   UserPlus,
-  Award
+  Award,
+  LayoutDashboard,
+  CalendarDays,
+  MessageSquare,
+  FileText
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 
@@ -84,7 +88,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/admin-suggestions', icon: <HelpCircle size={20} />, label: 'Parent Suggestions' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
       { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
-      { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' }
+      { to: '/create-users', icon: <UserPlus size={20} />, label: 'Create Users' },
+      { to: '/report-cards', icon: <Award size={20} />, label: 'Report Cards' }
     ];
     
     const teacherItems = [
@@ -95,7 +100,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
-      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/report-cards', icon: <Award size={20} />, label: 'Report Cards' }
     ];
     
     const parentItems = [
@@ -108,7 +114,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
-      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/report-cards', icon: <Award size={20} />, label: 'Report Cards' }
     ];
     
     const studentItems = [
@@ -118,7 +125,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
-      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+      { to: '/report-cards', icon: <Award size={20} />, label: 'Report Cards' }
     ];
     
     switch (user?.role) {

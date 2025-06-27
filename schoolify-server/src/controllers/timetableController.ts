@@ -8,10 +8,10 @@ import { AuthRequest } from '../types/express';
 export const createTimetableEntry = async (req: Request, res: Response) => {
   try {
     const { user } = req as AuthRequest;
-    const { class: classId, subject, teacher, dayOfWeek, startTime, endTime, room, academicYear, term } = req.body;
+    const { class: classId, subject, teacher, dayOfWeek, startTime, endTime, academicYear, term } = req.body;
 
     // Validate required fields
-    if (!classId || !subject || !teacher || !dayOfWeek || !startTime || !endTime || !room || !academicYear || !term) {
+    if (!classId || !subject || !teacher || !dayOfWeek || !startTime || !endTime || !academicYear || !term) {
       return res.status(400).json({ 
         error: 'Missing required fields',
         details: {
@@ -21,7 +21,6 @@ export const createTimetableEntry = async (req: Request, res: Response) => {
           dayOfWeek: !dayOfWeek ? 'Day is required' : null,
           startTime: !startTime ? 'Start time is required' : null,
           endTime: !endTime ? 'End time is required' : null,
-          room: !room ? 'Room is required' : null,
           academicYear: !academicYear ? 'Academic year is required' : null,
           term: !term ? 'Term is required' : null
         }
@@ -90,21 +89,6 @@ export const createTimetableEntry = async (req: Request, res: Response) => {
               endTime: { $gte: endTime }
             }
           ]
-        },
-        // Room time conflict
-        {
-          room,
-          dayOfWeek,
-          $or: [
-            {
-              startTime: { $lte: startTime },
-              endTime: { $gt: startTime }
-            },
-            {
-              startTime: { $lt: endTime },
-              endTime: { $gte: endTime }
-            }
-          ]
         }
       ]
     }).populate('class', 'name section')
@@ -118,8 +102,7 @@ export const createTimetableEntry = async (req: Request, res: Response) => {
             class: timeConflict.class,
             teacher: timeConflict.teacher,
             startTime: timeConflict.startTime,
-            endTime: timeConflict.endTime,
-            room: timeConflict.room
+            endTime: timeConflict.endTime
           }
         }
       });
@@ -132,7 +115,6 @@ export const createTimetableEntry = async (req: Request, res: Response) => {
       dayOfWeek,
       startTime,
       endTime,
-      room,
       academicYear,
       term,
       createdBy: user._id
@@ -218,14 +200,13 @@ export const getTeacherTimetable = async (req: Request, res: Response) => {
 export const updateTimetableEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { subject, startTime, endTime, room } = req.body;
+    const { subject, startTime, endTime } = req.body;
 
     // Only allow updating certain fields
     const updates: any = {};
     if (subject) updates.subject = subject;
     if (startTime) updates.startTime = startTime;
     if (endTime) updates.endTime = endTime;
-    if (room) updates.room = room;
 
     const timetableEntry = await Timetable.findByIdAndUpdate(
       id,
