@@ -29,17 +29,40 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-// Configure CORS properly for credentials
-app.use(cors({
-  origin: ['http://localhost:5173', 'https://schoolify-sms.vercel.app'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Define allowed origins
+const allowedOrigins = [
+  'http://localhost:5173', 
+  'https://schoolify-sms.vercel.app', 
+  'https://schoolify-sms-v2.vercel.app'
+];
+
+// Custom CORS middleware to handle multiple origins
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:5173', 'https://schoolify-sms.vercel.app'],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
