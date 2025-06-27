@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Calendar, Clock, Users, BookOpen, Plus } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
@@ -54,8 +55,23 @@ interface Child {
   };
 }
 
+interface Student {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  class?: {
+    _id: string;
+    name: string;
+    section: string;
+    gradeLevel: string;
+  };
+}
+
 // Component for Parent View
 const ParentTimetableView: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const childIdFromUrl = searchParams.get('childId');
+  
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay() || 1);
@@ -81,10 +97,17 @@ const ParentTimetableView: React.FC = () => {
     }
   }, [selectedChild, selectedDay]);
 
+  // Set the selected child from URL parameter if available
+  useEffect(() => {
+    if (childIdFromUrl && children.some(child => child._id === childIdFromUrl)) {
+      setSelectedChild(childIdFromUrl);
+    }
+  }, [childIdFromUrl, children]);
+
   const fetchChildren = async () => {
     try {
       setLoading(true);
-      const childrenData = await apiFetch<Child[]>('/parent/children');
+      const childrenData = await apiFetch<Child[]>('/parents/children');
       setChildren(childrenData);
       if (childrenData.length > 0) {
         setSelectedChild(childrenData[0]._id);
@@ -100,15 +123,7 @@ const ParentTimetableView: React.FC = () => {
   const fetchChildTimetable = async () => {
     try {
       setLoading(true);
-      const selectedChildData = children.find(child => child._id === selectedChild);
-      if (!selectedChildData || !selectedChildData.class) {
-        setError('Child has no assigned class');
-        setTimetableData([]);
-        return;
-      }
-
-      const classId = selectedChildData.class._id;
-      const response = await apiFetch<TimetableEntry[]>(`/timetable/class/${classId}`);
+      const response = await apiFetch<TimetableEntry[]>(`/parents/child/${selectedChild}/timetable`);
       setTimetableData(response);
       setError(null);
     } catch (error) {
@@ -724,6 +739,143 @@ const AdminTimetableView: React.FC = () => {
   );
 };
 
+// Component for Student View
+const StudentTimetableView: React.FC = () => {
+  const { user } = useAuthStore();
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay() || 1);
+  const [timetableData, setTimetableData] = useState<TimetableEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [classInfo, setClassInfo] = useState<{ name: string; section: string } | null>(null);
+
+  const dayOptions = [
+    { value: '1', label: 'Monday' },
+    { value: '2', label: 'Tuesday' },
+    { value: '3', label: 'Wednesday' },
+    { value: '4', label: 'Thursday' },
+    { value: '5', label: 'Friday' },
+  ];
+
+  useEffect(() => {
+    fetchStudentTimetable();
+  }, [selectedDay]);
+
+  const fetchStudentTimetable = async () => {
+    if (!user?._id) return;
+    
+    try {
+      setLoading(true);
+      // Get student's class information
+      const studentData = await apiFetch<Student>(`/users/${user._id}`);
+      
+      if (!studentData.class) {
+        setError('You are not assigned to any class');
+        setLoading(false);
+        return;
+      }
+      
+      setClassInfo({
+        name: studentData.class.name,
+        section: studentData.class.section
+      });
+      
+      // Fetch the timetable using the new endpoint
+      const response = await apiFetch<TimetableEntry[]>(`/timetable/student`);
+      setTimetableData(response);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching student timetable:', error);
+      setError('Failed to fetch timetable');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentTimetable = timetableData.filter(entry => entry.dayOfWeek === selectedDay);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">My Class Schedule</h1>
+        <p className="text-gray-600">View your class timetable</p>
+        {classInfo && (
+          <p className="text-sm text-gray-500 mt-1">
+            Class: {classInfo.name} {classInfo.section}
+          </p>
+        )}
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="w-full sm:w-1/2">
+              <Select
+                label="Day"
+                options={dayOptions}
+                value={selectedDay.toString()}
+                onChange={(e) => setSelectedDay(parseInt(e.target.value))}
+                fullWidth
+              />
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : error ? (
+            <div className="text-center text-red-500 py-4">{error}</div>
+          ) : currentTimetable.length === 0 ? (
+            <div className="text-center text-gray-500 py-4">No classes scheduled for this day</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                      Time
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                      Subject
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Teacher
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {currentTimetable.map((item, index) => (
+                    <tr key={item._id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="px-6 py-4 text-sm text-gray-500 border-r">
+                        <div className="flex items-center">
+                          <Clock size={16} className="mr-2 text-gray-400" />
+                          {item.startTime} - {item.endTime}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 border-r">
+                        <div className="flex items-center">
+                          <BookOpen size={16} className="mr-2 text-blue-500" />
+                          {item.subject}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <Users size={16} className="mr-2 text-teal-500" />
+                          {item.teacher.firstName} {item.teacher.lastName}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 export default function TimetablePage() {
   const { user } = useAuthStore();
 
@@ -734,8 +886,10 @@ export default function TimetablePage() {
     return <TeacherTimetableView />;
   } else if (user?.role === 'admin' || user?.role === 'super_admin') {
     return <AdminTimetableView />;
+  } else if (user?.role === 'student') {
+    return <StudentTimetableView />;
   } else {
-    // Fallback for students or unknown roles
+    // Fallback for unknown roles
     return (
       <div className="text-center py-12">
         <h1 className="text-2xl font-bold text-gray-800">Access Restricted</h1>

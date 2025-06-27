@@ -7,6 +7,7 @@ import { Fee } from '../models/Fee';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { AuthRequest } from '../types/express';
 import { Types } from 'mongoose';
+import { Timetable } from '../models/Timetable';
 
 const router = Router();
 
@@ -309,20 +310,24 @@ router.get('/child/:childId/timetable', authenticateToken, requireRole(['parent'
     }
 
     // Get timetable for child's class
-    const timetable = await Class.findById(child.class._id)
-      .populate({
-        path: 'timetable',
-        populate: {
-          path: 'teacher',
-          select: 'firstName lastName'
-        }
-      });
+    const timetableEntries = await Timetable.find({ class: child.class._id })
+      .populate('teacher', 'firstName lastName')
+      .populate('class', 'name section gradeLevel')
+      .sort({ dayOfWeek: 1, startTime: 1 });
 
-    if (!timetable || !(timetable as any).timetable) {
-      return res.json({ message: 'No timetable available for this class', timetable: [] });
-    }
+    // Convert dayOfWeek number to day name for better readability
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const formattedTimetable = timetableEntries.map(entry => ({
+      _id: entry._id,
+      day: dayNames[entry.dayOfWeek - 1] || `Day ${entry.dayOfWeek}`,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      subject: entry.subject,
+      teacher: entry.teacher,
+      class: entry.class
+    }));
 
-    res.json((timetable as any).timetable);
+    res.json(formattedTimetable);
   } catch (error) {
     console.error('Error fetching child timetable:', error);
     res.status(500).json({ error: 'Server error' });

@@ -243,4 +243,31 @@ export const deleteTimetableEntry = async (req: Request, res: Response) => {
     console.error('Error deleting timetable entry:', error);
     res.status(500).json({ error: 'Failed to delete timetable entry' });
   }
+};
+
+// Get timetable for a student (based on their class)
+export const getStudentTimetable = async (req: Request, res: Response) => {
+  try {
+    const { user } = req as AuthRequest;
+    
+    // Get student's class
+    const student = await User.findById(user._id).populate('class');
+    
+    if (!student || !student.class) {
+      return res.status(404).json({ error: 'Student not assigned to any class' });
+    }
+    
+    const classId = student.class._id;
+    
+    // Get timetable for the student's class
+    const timetable = await Timetable.find({ class: classId })
+      .populate('teacher', 'firstName lastName')
+      .populate('class', 'name section gradeLevel')
+      .sort({ dayOfWeek: 1, startTime: 1 });
+    
+    res.json(timetable);
+  } catch (error) {
+    console.error('Error fetching student timetable:', error);
+    res.status(500).json({ error: 'Failed to fetch timetable' });
+  }
 }; 

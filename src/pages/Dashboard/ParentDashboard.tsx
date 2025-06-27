@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -122,6 +123,11 @@ interface TimetableEntry {
     firstName: string;
     lastName: string;
   };
+  class?: {
+    name: string;
+    section: string;
+    gradeLevel: string;
+  };
 }
 
 interface PerformanceSummary {
@@ -149,10 +155,12 @@ interface AttendanceSummary {
   totalDays: number;
   present: number;
   absent: number;
-  late: number;
+  late?: number;
+  tardy?: number;
   presentPercentage: number;
   absentPercentage: number;
-  latePercentage: number;
+  latePercentage?: number;
+  tardyPercentage?: number;
 }
 
 interface FeeSummary {
@@ -212,6 +220,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, p
 );
 
 const ParentDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>('');
@@ -276,13 +285,14 @@ const ParentDashboard: React.FC = () => {
 
   const fetchChildData = async () => {
     setLoading(true);
+    setTimetableLoading(true);
+    setResultsLoading(true);
     try {
-      const [performanceRes, attendanceRes, feesRes, resultsRes, timetableRes] = await Promise.all([
+      // Fetch performance, attendance, and fees data
+      const [performanceRes, attendanceRes, feesRes] = await Promise.all([
         api.get(`/parents/child/${selectedChild}/performance`),
         api.get(`/parents/child/${selectedChild}/attendance`),
-        api.get(`/parents/child/${selectedChild}/fees`),
-        api.get(`/parents/child/${selectedChild}/results`),
-        api.get(`/parents/child/${selectedChild}/timetable`)
+        api.get(`/parents/child/${selectedChild}/fees`)
       ]);
 
       setMarks(performanceRes.data.marks);
@@ -291,8 +301,28 @@ const ParentDashboard: React.FC = () => {
       setAttendanceSummary(attendanceRes.data.summary);
       setFees(feesRes.data.fees);
       setFeeSummary(feesRes.data.summary);
-      setResults(resultsRes.data);
-      setTimetable(timetableRes.data);
+
+      // Fetch results separately
+      try {
+        const resultsRes = await api.get(`/parents/child/${selectedChild}/results`);
+        setResults(resultsRes.data);
+      } catch (err) {
+        console.error('Error fetching results:', err);
+        setError('Error fetching results data');
+      } finally {
+        setResultsLoading(false);
+      }
+
+      // Fetch timetable separately
+      try {
+        const timetableRes = await api.get(`/parents/child/${selectedChild}/timetable`);
+        setTimetable(timetableRes.data);
+      } catch (err) {
+        console.error('Error fetching timetable:', err);
+        setError('Error fetching timetable data');
+      } finally {
+        setTimetableLoading(false);
+      }
     } catch (err) {
       console.error('Error fetching child data:', err);
       setError('Error fetching child data');
@@ -326,7 +356,233 @@ const ParentDashboard: React.FC = () => {
   };
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
+    if (newValue === 5) {
+      // If the timetable tab is clicked, navigate to the timetable page with the selected child ID
+      navigate(`/timetable?childId=${selectedChild}`);
+    } else {
+      setActiveTab(newValue);
+    }
+  };
+
+  const renderOverview = () => {
+    return (
+      <Box p={3}>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Typography variant="h5" gutterBottom>
+              Child Overview
+            </Typography>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
+  const renderPerformanceTab = () => {
+    if (!performanceSummary) {
+      return (
+        <Box p={3} display="flex" justifyContent="center">
+          <Alert severity="info">No performance data available yet.</Alert>
+        </Box>
+      );
+    }
+
+    return (
+      <Box p={3}>
+        <Typography variant="h6" gutterBottom>
+          Academic Performance
+        </Typography>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Subject</TableCell>
+                <TableCell>Score</TableCell>
+                <TableCell>Grade</TableCell>
+                <TableCell>Date</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {marks.map((mark) => (
+                <TableRow key={mark._id}>
+                  <TableCell>{mark.subject}</TableCell>
+                  <TableCell>{mark.score}/{mark.totalScore}</TableCell>
+                  <TableCell>{mark.grade}</TableCell>
+                  <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
+                </TableRow>
+              ))}
+              {marks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">No marks recorded yet</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  const renderAttendanceTab = () => {
+    if (!attendanceSummary) {
+      return (
+        <Box p={3} display="flex" justifyContent="center">
+          <Alert severity="info">No attendance data available yet.</Alert>
+        </Box>
+      );
+    }
+
+    return (
+      <Box p={3}>
+        <Typography variant="h6" gutterBottom>
+          Attendance Records
+        </Typography>
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">{attendanceSummary.present}</Typography>
+              <Typography variant="body2">Present Days</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">{attendanceSummary.absent}</Typography>
+              <Typography variant="body2">Absent Days</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">{attendanceSummary.late || attendanceSummary.tardy}</Typography>
+              <Typography variant="body2">Late Days</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+        
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Date</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Reason</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {attendance.map((record) => (
+                <TableRow key={record._id}>
+                  <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Box
+                      sx={{
+                        display: 'inline-block',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        bgcolor: record.status === 'present' ? 'success.light' :
+                                record.status === 'absent' ? 'error.light' :
+                                'warning.light',
+                      }}
+                    >
+                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                    </Box>
+                  </TableCell>
+                  <TableCell>{record.reason || '-'}</TableCell>
+                </TableRow>
+              ))}
+              {attendance.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} align="center">No attendance records yet</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  const renderFeesTab = () => {
+    if (!feeSummary) {
+      return (
+        <Box p={3} display="flex" justifyContent="center">
+          <Alert severity="info">No fee data available yet.</Alert>
+        </Box>
+      );
+    }
+
+    return (
+      <Box p={3}>
+        <Typography variant="h6" gutterBottom>
+          Fee Information
+        </Typography>
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">${feeSummary.totalFees.toLocaleString()}</Typography>
+              <Typography variant="body2">Total Fees</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">${feeSummary.paidFees.toLocaleString()}</Typography>
+              <Typography variant="body2">Paid Amount</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h6">${feeSummary.outstandingFees.toLocaleString()}</Typography>
+              <Typography variant="body2">Outstanding Balance</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+        
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Term</TableCell>
+                <TableCell>Academic Year</TableCell>
+                <TableCell>Amount Due</TableCell>
+                <TableCell>Amount Paid</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Due Date</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {fees.map((fee) => (
+                <TableRow key={fee._id}>
+                  <TableCell>{fee.term}</TableCell>
+                  <TableCell>{fee.academic_year}</TableCell>
+                  <TableCell>${fee.amount_due.toLocaleString()}</TableCell>
+                  <TableCell>${fee.amount_paid.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Box
+                      sx={{
+                        display: 'inline-block',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        bgcolor: fee.status === 'paid' ? 'success.light' :
+                                fee.status === 'partially_paid' ? 'warning.light' :
+                                'error.light',
+                      }}
+                    >
+                      {fee.status.replace('_', ' ').charAt(0).toUpperCase() + fee.status.replace('_', ' ').slice(1)}
+                    </Box>
+                  </TableCell>
+                  <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
+                </TableRow>
+              ))}
+              {fees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">No fee records yet</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
   };
 
   const renderResultsTab = () => {
@@ -527,17 +783,6 @@ const ParentDashboard: React.FC = () => {
   return (
     <Box p={3}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-      {/* Debug Information */}
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2">
-          <strong>Debug Info:</strong><br/>
-          User Role: {user?.role}<br/>
-          User ID: {user?._id}<br/>
-          Children Count: {children.length}<br/>
-          Selected Child: {selectedChild || 'None'}
-        </Typography>
-      </Alert>
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
