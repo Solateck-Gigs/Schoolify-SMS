@@ -6,7 +6,7 @@ import Select from '../../components/ui/Select';
 import Input from '../../components/ui/Input';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../../components/ui/Table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
-import { Search, Calendar, Users, Eye, GraduationCap } from 'lucide-react';
+import { Search, Calendar, Users, Eye, Edit, GraduationCap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { apiFetch } from '../../lib/api';
 
@@ -19,7 +19,7 @@ interface Student {
   email: string;
   present: boolean;
   isActive: boolean;
-  status: 'present' | 'absent' | 'late' | null;
+  status: 'present' | 'absent' | 'tardy' | null;
   reason?: string;
 }
 
@@ -52,7 +52,7 @@ interface AttendanceRecord {
     user_id_number: string;
     admissionNumber: string;
   };
-  status: 'present' | 'absent' | 'late';
+  status: 'present' | 'absent' | 'tardy';
   reason?: string;
   markedBy: {
     _id: string;
@@ -73,7 +73,8 @@ interface AttendanceSummary {
   totalStudents: number;
   presentCount: number;
   absentCount: number;
-  lateCount: number;
+  lateCount?: number;
+  tardyCount?: number;
   attendanceRate: number;
 }
 
@@ -94,7 +95,7 @@ interface Child {
 interface ChildAttendanceRecord {
   _id: string;
   date: string;
-  status: 'present' | 'absent' | 'late';
+  status: 'present' | 'absent' | 'tardy';
   reason?: string;
   class: {
     name: string;
@@ -157,7 +158,7 @@ const ParentAttendanceView: React.FC = () => {
         return 'bg-green-100 text-green-800';
       case 'absent':
         return 'bg-red-100 text-red-800';
-      case 'late':
+      case 'tardy':
         return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -348,6 +349,9 @@ export default function AttendancePage() {
   const [selectedAttendanceDetails, setSelectedAttendanceDetails] = useState<AttendanceRecord[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
+  // Define the type for attendance status
+  type AttendanceStatus = 'present' | 'absent' | 'tardy';
+
   // Fetch classes when component mounts
   useEffect(() => {
     fetchClasses();
@@ -423,8 +427,47 @@ export default function AttendancePage() {
       setDetailsLoading(false);
     }
   };
+  
+  const handleEditAttendance = async (classId: string, date: string) => {
+    try {
+      setDetailsLoading(true);
+      const detailsData = await apiFetch(`/attendance/details?classId=${classId}&date=${date}`) as AttendanceRecord[];
+      
+      // Set the selected class and date
+      setSelectedClass(classId);
+      setSelectedDate(date);
+      
+      // Convert the attendance records to student format for editing
+      const studentsWithAttendance = detailsData.map(record => ({
+        id: record.student._id,
+        firstName: record.student.firstName,
+        lastName: record.student.lastName,
+        user_id_number: record.student.user_id_number,
+        admissionNumber: record.student.admissionNumber,
+        email: '',
+        present: record.status === 'present',
+        isActive: true,
+        status: record.status,
+        reason: record.reason || '',
+        _attendanceId: record._id // Store the attendance record ID for updating
+      }));
+      
+      setStudents(studentsWithAttendance);
+      
+      // Scroll to the attendance marking section
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      toast.success('Loaded attendance data for editing. You can now update the attendance records.');
+    } catch (error) {
+      console.error('Error fetching attendance for editing:', error);
+      toast.error('Failed to load attendance data for editing');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
-  const handleAttendanceChange = (studentId: string, status: 'present' | 'absent' | 'late') => {
+  // Handle attendance change
+  const handleAttendanceChange = (studentId: string, status: 'present' | 'absent' | 'tardy') => {
     setStudents(prev => prev.map(student => 
       student.id === studentId 
         ? { ...student, status, present: status === 'present' }
@@ -452,7 +495,9 @@ export default function AttendancePage() {
         .map(student => ({
           studentId: student.id,
           status: student.status,
-          reason: student.reason || ''
+          reason: student.reason || '',
+          // Include attendance record ID if it exists (for updating existing records)
+          attendanceId: (student as any)._attendanceId
         }));
 
       if (attendanceRecords.length === 0) {
@@ -499,7 +544,13 @@ export default function AttendancePage() {
       
       // Show success message for students that were processed
       if (response.results.success && response.results.success.length > 0) {
-        toast.success(`Attendance saved successfully for ${response.results.success.length} students`);
+        // Check if we were updating existing records
+        const isEditing = students.some((student: any) => student._attendanceId);
+        if (isEditing) {
+          toast.success(`Attendance updated successfully for ${response.results.success.length} students`);
+        } else {
+          toast.success(`Attendance saved successfully for ${response.results.success.length} students`);
+        }
       } else {
         toast.error('No attendance records were processed successfully');
       }
@@ -533,7 +584,7 @@ export default function AttendancePage() {
         return 'bg-green-100 text-green-800';
       case 'absent':
         return 'bg-red-100 text-red-800';
-      case 'late':
+      case 'tardy':
         return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -570,6 +621,12 @@ export default function AttendancePage() {
                 {selectedClassData.name} - Grade {selectedClassData.gradeLevel} {selectedClassData.section}
               </p>
             )}
+            {students.some((student: any) => student._attendanceId) && (
+              <div className="mt-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-md inline-flex items-center">
+                <Edit className="h-4 w-4 mr-2" />
+                <span>Editing existing attendance records</span>
+              </div>
+            )}
           </div>
           
           {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'teacher') && selectedClass && (
@@ -579,7 +636,7 @@ export default function AttendancePage() {
               disabled={saving || loading}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {saving ? 'Saving...' : 'Save Attendance'}
+              {saving ? 'Saving...' : students.some((student: any) => student._attendanceId) ? 'Update Attendance' : 'Save Attendance'}
             </Button>
           )}
         </div>
@@ -687,14 +744,12 @@ export default function AttendancePage() {
                                 Absent
                               </Button>
                               <Button
-                                variant={student.status === 'late' ? "primary" : "outline"}
+                                onClick={() => handleAttendanceChange(student.id, 'tardy')}
+                                variant={student.status === 'tardy' ? "primary" : "outline"}
                                 size="sm"
-                                onClick={() => handleAttendanceChange(student.id, 'late')}
-                                className={student.status === 'late' ? "bg-yellow-600 hover:bg-yellow-700 text-white" : ""}
-                                disabled={!student.isActive}
-                                title={!student.isActive ? "Cannot mark attendance for inactive students" : ""}
+                                className={student.status === 'tardy' ? "bg-yellow-600 hover:bg-yellow-700 text-white" : ""}
                               >
-                                Late
+                                Tardy
                               </Button>
                             </div>
                           </TableCell>
@@ -795,7 +850,7 @@ export default function AttendancePage() {
                       <TableHeader>Total Students</TableHeader>
                       <TableHeader>Present</TableHeader>
                       <TableHeader>Absent</TableHeader>
-                      <TableHeader>Late</TableHeader>
+                      <TableHeader>Tardy</TableHeader>
                       <TableHeader>Attendance Rate</TableHeader>
                       <TableHeader className="text-right">Actions</TableHeader>
                     </TableRow>
@@ -829,7 +884,7 @@ export default function AttendancePage() {
                         </TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                            {record.lateCount}
+                            {record.tardyCount || record.lateCount || 0}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -838,14 +893,26 @@ export default function AttendancePage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchAttendanceDetails(record.class._id, record.date)}
-                            disabled={detailsLoading}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchAttendanceDetails(record.class._id, record.date)}
+                              disabled={detailsLoading}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditAttendance(record.class._id, record.date)}
+                              disabled={detailsLoading}
+                              title="Edit Attendance"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -893,7 +960,9 @@ export default function AttendancePage() {
                     <div>
                       <span className="text-gray-600">Marked By:</span>
                       <span className="ml-2 font-semibold">
-                        {selectedAttendanceDetails[0]?.markedBy.firstName} {selectedAttendanceDetails[0]?.markedBy.lastName}
+                        {selectedAttendanceDetails[0]?.markedBy ? 
+                          `${selectedAttendanceDetails[0].markedBy.firstName || ''} ${selectedAttendanceDetails[0].markedBy.lastName || ''}` : 
+                          'Unknown'}
                       </span>
                     </div>
                   </div>
@@ -915,11 +984,11 @@ export default function AttendancePage() {
                     {selectedAttendanceDetails.map((record) => (
                       <TableRow key={record._id}>
                         <TableCell className="font-medium">
-                          {record.student.firstName} {record.student.lastName}
+                          {record.student ? `${record.student.firstName || ''} ${record.student.lastName || ''}` : 'Unknown Student'}
                         </TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {record.student.user_id_number}
+                            {record.student?.user_id_number || 'N/A'}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -931,7 +1000,9 @@ export default function AttendancePage() {
                           {record.reason || '-'}
                         </TableCell>
                         <TableCell>
-                          {new Date(record.createdAt).toLocaleTimeString()}
+                          {record.createdAt && !isNaN(new Date(record.createdAt).getTime()) 
+                            ? new Date(record.createdAt).toLocaleTimeString() 
+                            : 'N/A'}
                         </TableCell>
                       </TableRow>
                     ))}

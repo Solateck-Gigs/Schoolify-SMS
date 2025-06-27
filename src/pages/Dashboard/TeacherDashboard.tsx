@@ -557,12 +557,12 @@ const TeacherDashboard: React.FC = () => {
                     <TableBody>
                       {marks.map((mark) => (
                         <TableRow key={mark._id}>
-                          <TableCell>{mark.student.first_name} {mark.student.last_name}</TableCell>
+                          <TableCell>{mark.student ? `${mark.student.first_name || ''} ${mark.student.last_name || ''}` : 'Unknown Student'}</TableCell>
                           <TableCell>{mark.subject}</TableCell>
                           <TableCell>{mark.score}/{mark.totalScore}</TableCell>
                           <TableCell>{mark.grade}</TableCell>
                           <TableCell>{mark.assessment_type}</TableCell>
-                          <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{mark.date ? new Date(mark.date).toLocaleDateString() : '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -595,9 +595,9 @@ const TeacherDashboard: React.FC = () => {
               <TableBody>
                       {attendance.map((record) => (
                         <TableRow key={record._id}>
-                          <TableCell>{record.student.first_name} {record.student.last_name}</TableCell>
+                          <TableCell>{record.student ? `${record.student.first_name || ''} ${record.student.last_name || ''}` : 'Unknown Student'}</TableCell>
                           <TableCell>{record.status}</TableCell>
-                          <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{record.date ? new Date(record.date).toLocaleDateString() : '-'}</TableCell>
                           <TableCell>{record.reason || '-'}</TableCell>
                   </TableRow>
                 ))}
@@ -623,7 +623,7 @@ const TeacherDashboard: React.FC = () => {
             >
               {students.map((student) => (
                 <MenuItem key={student._id} value={student._id}>
-                  {student.first_name} {student.last_name}
+                  {student ? `${student.first_name || ''} ${student.last_name || ''}` : 'Unknown Student'}
                 </MenuItem>
               ))}
             </Select>
@@ -738,7 +738,7 @@ const TeacherDashboard: React.FC = () => {
                 {students.map((student) => (
                   <TableRow key={student._id}>
                     <TableCell>
-                      {student.first_name} {student.last_name}
+                      {student ? `${student.first_name || ''} ${student.last_name || ''}` : 'Unknown Student'}
                     </TableCell>
                     <TableCell>
                       <Select

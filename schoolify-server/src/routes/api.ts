@@ -25,7 +25,7 @@ router.get('/attendance/class/:classId', authenticate, authorize(['teacher']), a
 router.get('/attendance/student/:studentId', authenticate, authorize(['teacher']), attendanceController.getStudentAttendance);
 router.post('/attendance/class/:classId', authenticate, authorize(['teacher']), attendanceController.markAttendance);
 router.put('/attendance/:attendanceId', authenticate, authorize(['teacher']), attendanceController.updateAttendance);
-router.get('/attendance/student/:studentId/summary', authenticate, authorize(['teacher']), attendanceController.getStudentAttendanceSummary);
+router.get('/attendance/student/:studentId/summary', authenticate, authorize(['teacher']), attendanceController.getStudentAttendanceStats);
 
 // Parent routes
 router.get('/parent/children', authenticate, authorize(['parent']), parentController.getChildren);

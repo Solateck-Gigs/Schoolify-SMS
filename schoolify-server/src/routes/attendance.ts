@@ -40,7 +40,7 @@ router.get('/class/:classId', authenticateToken, requireRole(['admin', 'super_ad
 
     const attendance = await Attendance.find(query)
       .populate('student', 'firstName lastName user_id_number admissionNumber')
-      .populate('marked_by', 'firstName lastName')
+      .populate('recordedBy', 'firstName lastName')
       .sort({ date: -1 });
 
     res.json(attendance);
@@ -154,7 +154,7 @@ router.get('/student/:studentId', authenticateToken, async (req: Request, res: R
     }
 
     const attendance = await Attendance.find(query)
-      .populate('marked_by', 'firstName lastName')
+      .populate('recordedBy', 'firstName lastName')
       .sort({ date: -1 });
 
     res.json(attendance);
@@ -265,7 +265,7 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
           // Update existing record
           existingAttendance.status = record.status;
           existingAttendance.reason = record.reason;
-          existingAttendance.marked_by = user._id;
+          existingAttendance.recordedBy = user._id;
           await existingAttendance.save();
           
           results.success.push({
@@ -282,9 +282,9 @@ router.post('/mark', authenticateToken, requireRole(['admin', 'super_admin', 'te
             class: classId,
             date: recordDate,
             status: record.status,
-            academic_year: academicYear,
+            academicYear: academicYear,
             term,
-            marked_by: user._id,
+            recordedBy: user._id,
             reason: record.reason
           });
           await attendance.save();
@@ -334,7 +334,7 @@ router.put('/:attendanceId', authenticateToken, requireRole(['admin', 'super_adm
     }
 
     // Authorization check - admin can update all, teacher can only update records they marked
-    if (user.role === 'teacher' && attendance.marked_by.toString() !== user._id.toString()) {
+    if (user.role === 'teacher' && attendance.recordedBy.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to update this attendance record' });
     }
     
@@ -390,7 +390,7 @@ router.get('/student/:studentId/summary', authenticateToken, async (req: Request
 
     // Build query based on filters
     const query: any = { student: studentId };
-    if (academicYear) query.academic_year = academicYear;
+    if (academicYear) query.academicYear = academicYear;
     if (term) query.term = term;
 
     const attendance = await Attendance.find(query);
@@ -400,10 +400,10 @@ router.get('/student/:studentId/summary', authenticateToken, async (req: Request
       totalDays: attendance.length,
       present: 0,
       absent: 0,
-      late: 0,
+      tardy: 0,
       presentPercentage: 0,
       absentPercentage: 0,
-      latePercentage: 0
+      tardyPercentage: 0
     };
 
     attendance.forEach(record => {
@@ -414,8 +414,8 @@ router.get('/student/:studentId/summary', authenticateToken, async (req: Request
         case 'absent':
           summary.absent++;
           break;
-        case 'late':
-          summary.late++;
+        case 'tardy':
+          summary.tardy++;
           break;
       }
     });
@@ -423,7 +423,7 @@ router.get('/student/:studentId/summary', authenticateToken, async (req: Request
     if (summary.totalDays > 0) {
       summary.presentPercentage = Math.round((summary.present / summary.totalDays) * 100);
       summary.absentPercentage = Math.round((summary.absent / summary.totalDays) * 100);
-      summary.latePercentage = Math.round((summary.late / summary.totalDays) * 100);
+      summary.tardyPercentage = Math.round((summary.tardy / summary.totalDays) * 100);
     }
 
     res.json({
@@ -465,8 +465,8 @@ router.get('/summary', authenticateToken, requireRole(['admin', 'super_admin', '
           absentCount: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           },
-          lateCount: {
-            $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] }
+          tardyCount: {
+            $sum: { $cond: [{ $eq: ["$status", "tardy"] }, 1, 0] }
           }
         }
       },
@@ -503,7 +503,7 @@ router.get('/summary', authenticateToken, requireRole(['admin', 'super_admin', '
           totalStudents: 1,
           presentCount: 1,
           absentCount: 1,
-          lateCount: 1,
+          tardyCount: 1,
           attendanceRate: { $round: ['$attendanceRate', 1] }
         }
       },
@@ -578,7 +578,7 @@ router.get('/details', authenticateToken, requireRole(['admin', 'super_admin', '
       }
     })
     .populate('student', 'firstName lastName user_id_number admissionNumber')
-    .populate('marked_by', 'firstName lastName')
+    .populate('recordedBy', 'firstName lastName')
     .populate('class', 'name gradeLevel section')
     .sort({ createdAt: -1 });
 

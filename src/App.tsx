@@ -24,6 +24,7 @@ import ClassesPage from './pages/Classes/ClassesPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfileCompletionPage from './pages/ProfileCompletionPage';
+import ReportCardsPage from './pages/ReportCards/ReportCardsPage';
 
 // Configure React Router future flags
 const router = {
@@ -263,7 +264,9 @@ function App() {
             path="/timetable"
             element={
               <ProtectedRoute>
-                <TimetablePage />
+                <RoleRoute allowedRoles={['teacher', 'student', 'admin', 'super_admin']}>
+                  <TimetablePage />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
@@ -329,6 +332,18 @@ function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['super_admin', 'admin']}>
                   <CreateUsersPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Report Cards - Teacher, Student, Parent, Admin, Super Admin */}
+          <Route
+            path="/report-cards"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['teacher', 'student', 'parent', 'admin', 'super_admin']}>
+                  <ReportCardsPage />
                 </RoleRoute>
               </ProtectedRoute>
             }

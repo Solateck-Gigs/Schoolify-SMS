@@ -40,8 +40,13 @@ interface ChildStats {
   }>;
   attendanceRecords: Array<{
     date: string;
-    status: 'present' | 'absent' | 'late';
+    status: 'present' | 'absent' | 'tardy';
   }>;
+}
+
+interface AttendanceRecord {
+  date: string;
+  status: 'present' | 'absent' | 'tardy';
 }
 
 export default function MyChildrenPage() {
@@ -342,9 +347,11 @@ export default function MyChildrenPage() {
                           className={`p-3 rounded-lg text-center text-sm ${
                             record.status === 'present'
                               ? 'bg-green-100 text-green-800'
-                              : record.status === 'late'
+                              : record.status === 'absent'
+                              ? 'bg-red-100 text-red-800'
+                              : record.status === 'tardy'
                               ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
                           }`}
                         >
                           <p className="font-medium">{new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>

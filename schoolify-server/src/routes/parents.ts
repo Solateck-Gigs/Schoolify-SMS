@@ -267,7 +267,7 @@ router.get('/child/:childId/attendance', authenticateToken, requireRole(['parent
       totalDays: attendance.length,
       present: attendance.filter(a => a.status === 'present').length,
       absent: attendance.filter(a => a.status === 'absent').length,
-      late: attendance.filter(a => a.status === 'late').length,
+      late: attendance.filter(a => a.status === 'tardy').length,
       presentPercentage: 0,
       absentPercentage: 0,
       latePercentage: 0
