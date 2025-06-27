@@ -53,6 +53,123 @@ router.get('/children', authenticateToken, requireRole(['parent']), async (req, 
   }
 });
 
+// Get child's academic results
+router.get('/child/:childId/results', authenticateToken, requireRole(['parent']), async (req, res) => {
+  try {
+    const { user } = req as AuthRequest;
+    const { childId } = req.params;
+    const { term, academicYear } = req.query;
+
+    // Verify this child belongs to the authenticated parent
+    const parent = await User.findById(user._id);
+    const childObjectId = new Types.ObjectId(childId);
+    if (!parent || !parent.children?.some(child => child.equals(childObjectId))) {
+      return res.status(403).json({ error: 'Not authorized to view this child\'s data' });
+    }
+
+    // Build query for results
+    const query: any = { student: childId };
+    
+    if (term) query.term = term;
+    if (academicYear) query.academicYear = academicYear;
+
+    // Get results data from database
+    const results = await Mark.find(query)
+      .populate('teacher', 'firstName lastName')
+      .populate('class', 'name section gradeLevel')
+      .sort({ createdAt: -1 });
+
+    // Process results by subject
+    const subjects = [...new Set(results.map(mark => mark.subject))];
+    
+    interface SubjectResult {
+      subject: string;
+      exam: {
+        scores: any[];
+        average: number;
+      };
+      test: {
+        scores: any[];
+        average: number;
+      };
+      overallAverage: number;
+      grade: string;
+    }
+    
+    const resultsBySubject: SubjectResult[] = subjects.map(subject => {
+      const subjectMarks = results.filter(mark => mark.subject === subject);
+      
+      // Get test and exam scores
+      const examResults = subjectMarks.filter(mark => mark.assessmentType === 'exam');
+      const testResults = subjectMarks.filter(mark => mark.assessmentType === 'test');
+      
+      // Calculate averages
+      const examAverage = examResults.length > 0 
+        ? examResults.reduce((sum, mark) => sum + (mark.score / mark.totalScore * 100), 0) / examResults.length 
+        : 0;
+      
+      const testAverage = testResults.length > 0
+        ? testResults.reduce((sum, mark) => sum + (mark.score / mark.totalScore * 100), 0) / testResults.length
+        : 0;
+      
+      // Calculate overall average for subject
+      const overallAverage = (examAverage * 0.7) + (testAverage * 0.3); // 70% exam, 30% test
+      
+      // Determine grade
+      let grade = 'F';
+      if (overallAverage >= 90) grade = 'A+';
+      else if (overallAverage >= 80) grade = 'A';
+      else if (overallAverage >= 70) grade = 'B+';
+      else if (overallAverage >= 60) grade = 'B';
+      else if (overallAverage >= 50) grade = 'C+';
+      else if (overallAverage >= 40) grade = 'C';
+      
+      return {
+        subject,
+        exam: {
+          scores: examResults,
+          average: examAverage
+        },
+        test: {
+          scores: testResults,
+          average: testAverage
+        },
+        overallAverage: Math.round(overallAverage),
+        grade
+      };
+    });
+    
+    // Calculate class position and promotion status if all subjects available
+    const childInfo = await User.findById(childId).populate('class');
+    const classStudents = await User.find({ class: childInfo?.class?._id, role: 'student' });
+    
+    // Calculate overall performance for promotion decision
+    const overallScore = resultsBySubject.reduce((sum, subject) => sum + subject.overallAverage, 0);
+    const promotionThreshold = 400; // Configurable threshold for promotion
+    const promotionStatus = {
+      totalScore: overallScore,
+      threshold: promotionThreshold,
+      canBePromoted: overallScore >= promotionThreshold,
+      nextClass: childInfo?.class ? `${parseInt((childInfo.class as any).gradeLevel as string) + 1}` : 'Unknown'
+    };
+
+    res.json({
+      studentInfo: {
+        name: `${childInfo?.firstName} ${childInfo?.lastName}`,
+        class: childInfo?.class,
+        classSize: classStudents.length
+      },
+      resultsBySubject,
+      promotionStatus,
+      term: term || 'All terms',
+      academicYear: academicYear || 'All years'
+    });
+  } catch (error) {
+    console.error('Error fetching child results:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get child's performance data
 router.get('/child/:childId/performance', authenticateToken, requireRole(['parent']), async (req, res) => {
   try {
@@ -80,7 +197,7 @@ router.get('/child/:childId/performance', authenticateToken, requireRole(['paren
 
     marks.forEach(mark => {
       // Calculate percentage for this mark
-      const percentage = (mark.score / mark.total_score) * 100;
+      const percentage = (mark.score / mark.totalScore) * 100;
       totalScore += percentage;
 
       // Group by subject
@@ -106,10 +223,10 @@ router.get('/child/:childId/performance', authenticateToken, requireRole(['paren
         _id: mark._id,
         subject: mark.subject,
         score: mark.score,
-        total_score: mark.total_score,
+        totalScore: mark.totalScore,
         grade: mark.grade,
-        assessment_type: mark.assessment_type,
-        date: mark.date,
+        assessmentType: mark.assessmentType,
+        createdAt: mark.createdAt,
         teacher: mark.teacher
       })),
       summary: {
@@ -168,6 +285,46 @@ router.get('/child/:childId/attendance', authenticateToken, requireRole(['parent
     });
   } catch (error) {
     console.error('Error fetching child attendance:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get child's timetable
+router.get('/child/:childId/timetable', authenticateToken, requireRole(['parent']), async (req, res) => {
+  try {
+    const { user } = req as AuthRequest;
+    const { childId } = req.params;
+
+    // Verify this child belongs to the authenticated parent
+    const parent = await User.findById(user._id);
+    const childObjectId = new Types.ObjectId(childId);
+    if (!parent || !parent.children?.some(child => child.equals(childObjectId))) {
+      return res.status(403).json({ error: 'Not authorized to view this child\'s data' });
+    }
+
+    // Get child's class
+    const child = await User.findById(childId).populate('class');
+    if (!child || !child.class) {
+      return res.status(404).json({ error: 'Child or class not found' });
+    }
+
+    // Get timetable for child's class
+    const timetable = await Class.findById(child.class._id)
+      .populate({
+        path: 'timetable',
+        populate: {
+          path: 'teacher',
+          select: 'firstName lastName'
+        }
+      });
+
+    if (!timetable || !(timetable as any).timetable) {
+      return res.json({ message: 'No timetable available for this class', timetable: [] });
+    }
+
+    res.json((timetable as any).timetable);
+  } catch (error) {
+    console.error('Error fetching child timetable:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -256,7 +413,7 @@ router.get('/child/:childId/stats', authenticateToken, requireRole(['parent']), 
     // Calculate real average grade from database
     let averageGrade = 0;
     if (marks.length > 0) {
-      const totalPercentage = marks.reduce((sum, mark) => sum + (mark.score / mark.total_score * 100), 0);
+      const totalPercentage = marks.reduce((sum, mark) => sum + (mark.score / mark.totalScore * 100), 0);
       averageGrade = Math.round(totalPercentage / marks.length);
     }
 
@@ -269,8 +426,8 @@ router.get('/child/:childId/stats', authenticateToken, requireRole(['parent']), 
     const recentGrades = marks.map(mark => ({
       subject: mark.subject,
       score: mark.score,
-      totalScore: mark.total_score,
-      date: mark.date.toISOString()
+      totalScore: mark.totalScore,
+      createdAt: mark.createdAt.toISOString()
     }));
 
     const stats = {
@@ -322,7 +479,7 @@ router.get('/child/:childId/monthly-stats', authenticateToken, requireRole(['par
     const monthGroups: { [key: string]: any[] } = {};
 
     marks.forEach(mark => {
-      const monthKey = mark.date.toISOString().substring(0, 7); // YYYY-MM
+      const monthKey = mark.createdAt.toISOString().substring(0, 7); // YYYY-MM
       if (!monthGroups[monthKey]) {
         monthGroups[monthKey] = [];
       }
@@ -332,7 +489,7 @@ router.get('/child/:childId/monthly-stats', authenticateToken, requireRole(['par
     // Calculate monthly averages
     Object.keys(monthGroups).forEach(monthKey => {
       const monthMarks = monthGroups[monthKey];
-      const totalPercentage = monthMarks.reduce((sum, mark) => sum + (mark.score / mark.total_score * 100), 0);
+      const totalPercentage = monthMarks.reduce((sum, mark) => sum + (mark.score / mark.totalScore * 100), 0);
       const average = monthMarks.length > 0 ? totalPercentage / monthMarks.length : 0;
 
       monthlyStats.push({

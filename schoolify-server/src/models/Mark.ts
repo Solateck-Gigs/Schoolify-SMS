@@ -1,26 +1,25 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IMark extends Document {
   student: mongoose.Types.ObjectId;
   class: mongoose.Types.ObjectId;
   subject: string;
-  academic_year: string;
-  term: 'Term 1' | 'Term 2' | 'Term 3';
-  assessment_type: 'quiz' | 'homework' | 'exam' | 'project';
   score: number;
-  total_score: number;
+  totalScore: number;
   grade: string;
+  assessmentType: string;
+  term: string;
+  academicYear: string;
   remarks?: string;
   teacher: mongoose.Types.ObjectId;
-  date: Date;
-  created_at: Date;
-  updated_at: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const MarkSchema = new Schema<IMark>({
+const MarkSchema = new Schema({
   student: {
     type: Schema.Types.ObjectId,
-    ref: 'Student',
+    ref: 'User',
     required: true
   },
   class: {
@@ -30,62 +29,52 @@ const MarkSchema = new Schema<IMark>({
   },
   subject: {
     type: String,
-    required: true,
-    trim: true
-  },
-  academic_year: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  term: {
-    type: String,
-    enum: ['Term 1', 'Term 2', 'Term 3'],
-    required: true
-  },
-  assessment_type: {
-    type: String,
-    enum: ['quiz', 'homework', 'exam', 'project'],
     required: true
   },
   score: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    max: 100
   },
-  total_score: {
+  totalScore: {
     type: Number,
     required: true,
-    min: 1
+    default: 100
   },
   grade: {
     type: String,
     required: true,
-    trim: true
+    enum: ['A+', 'A', 'B+', 'B', 'C+', 'C', 'F']
+  },
+  assessmentType: {
+    type: String,
+    required: true,
+    enum: ['test', 'exam']
+  },
+  term: {
+    type: String,
+    required: true
+  },
+  academicYear: {
+    type: String,
+    required: true,
+    default: new Date().getFullYear().toString()
   },
   remarks: {
-    type: String,
-    trim: true
+    type: String
   },
   teacher: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  },
-  date: {
-    type: Date,
-    required: true,
-    default: Date.now
   }
 }, {
-  timestamps: {
-    createdAt: 'created_at',
-    updatedAt: 'updated_at'
-  }
+  timestamps: true
 });
 
 // Indexes for better query performance
-MarkSchema.index({ student: 1, class: 1, subject: 1, academic_year: 1, term: 1 });
+MarkSchema.index({ student: 1, class: 1, subject: 1, academicYear: 1, term: 1 });
 MarkSchema.index({ teacher: 1 });
 MarkSchema.index({ class: 1 });
 

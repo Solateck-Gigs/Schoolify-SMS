@@ -54,7 +54,7 @@ interface Mark {
   _id: string;
   subject: string;
   score: number;
-  total_score: number;
+  totalScore: number;
   grade: string;
   assessment_type: string;
   date: string;
@@ -79,6 +79,49 @@ interface Fee {
   amount_paid: number;
   status: 'paid' | 'partially_paid' | 'unpaid';
   due_date: string;
+}
+
+interface SubjectResult {
+  subject: string;
+  exam: {
+    scores: any[];
+    average: number;
+  };
+  test: {
+    scores: any[];
+    average: number;
+  };
+  overallAverage: number;
+  grade: string;
+}
+
+interface ChildResults {
+  studentInfo: {
+    name: string;
+    class: any;
+    classSize: number;
+  };
+  resultsBySubject: SubjectResult[];
+  promotionStatus: {
+    totalScore: number;
+    threshold: number;
+    canBePromoted: boolean;
+    nextClass: string;
+  };
+  term: string;
+  academicYear: string;
+}
+
+interface TimetableEntry {
+  _id: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  subject: string;
+  teacher: {
+    firstName: string;
+    lastName: string;
+  };
 }
 
 interface PerformanceSummary {
@@ -180,6 +223,10 @@ const ParentDashboard: React.FC = () => {
   const [marks, setMarks] = useState<Mark[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [fees, setFees] = useState<Fee[]>([]);
+  const [results, setResults] = useState<ChildResults | null>(null);
+  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
+  const [timetableLoading, setTimetableLoading] = useState(false);
+  const [resultsLoading, setResultsLoading] = useState(false);
   const [performanceSummary, setPerformanceSummary] = useState<PerformanceSummary | null>(null);
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
   const [feeSummary, setFeeSummary] = useState<FeeSummary | null>(null);
@@ -230,10 +277,12 @@ const ParentDashboard: React.FC = () => {
   const fetchChildData = async () => {
     setLoading(true);
     try {
-      const [performanceRes, attendanceRes, feesRes] = await Promise.all([
+      const [performanceRes, attendanceRes, feesRes, resultsRes, timetableRes] = await Promise.all([
         api.get(`/parents/child/${selectedChild}/performance`),
         api.get(`/parents/child/${selectedChild}/attendance`),
-        api.get(`/parents/child/${selectedChild}/fees`)
+        api.get(`/parents/child/${selectedChild}/fees`),
+        api.get(`/parents/child/${selectedChild}/results`),
+        api.get(`/parents/child/${selectedChild}/timetable`)
       ]);
 
       setMarks(performanceRes.data.marks);
@@ -242,7 +291,10 @@ const ParentDashboard: React.FC = () => {
       setAttendanceSummary(attendanceRes.data.summary);
       setFees(feesRes.data.fees);
       setFeeSummary(feesRes.data.summary);
+      setResults(resultsRes.data);
+      setTimetable(timetableRes.data);
     } catch (err) {
+      console.error('Error fetching child data:', err);
       setError('Error fetching child data');
     } finally {
       setLoading(false);
@@ -275,6 +327,193 @@ const ParentDashboard: React.FC = () => {
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+  };
+
+  const renderResultsTab = () => {
+    if (resultsLoading) {
+      return <CircularProgress />;
+    }
+
+    if (!results || !results.resultsBySubject || results.resultsBySubject.length === 0) {
+      return (
+        <Alert severity="info">
+          No results available for this child yet. Check back later.
+        </Alert>
+      );
+    }
+
+    return (
+      <Box>
+        <Box mb={4}>
+          <Typography variant="h6" gutterBottom>
+            {results.studentInfo.name} - Results Summary
+          </Typography>
+          <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Class:
+                </Typography>
+                <Typography variant="body1">
+                  {results.studentInfo.class?.name || 'N/A'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Total Score:
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {results.promotionStatus.totalScore} / {results.resultsBySubject.length * 100}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Typography variant="body2" color="text.secondary">
+                  Promotion Status:
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  color={results.promotionStatus.canBePromoted ? 'success.main' : 'error.main'}
+                  fontWeight="bold"
+                >
+                  {results.promotionStatus.canBePromoted ? 
+                    `Can be promoted to ${results.promotionStatus.nextClass}` : 
+                    `Needs to repeat current class`}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Box>
+
+        <Typography variant="h6" gutterBottom>
+          Subject Performance
+        </Typography>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Subject</TableCell>
+                <TableCell>Exam Average</TableCell>
+                <TableCell>Test Average</TableCell>
+                <TableCell>Overall</TableCell>
+                <TableCell>Grade</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {results.resultsBySubject.map((subject) => (
+                <TableRow key={subject.subject}>
+                  <TableCell>{subject.subject}</TableCell>
+                  <TableCell>{Math.round(subject.exam.average)}%</TableCell>
+                  <TableCell>{Math.round(subject.test.average)}%</TableCell>
+                  <TableCell>{subject.overallAverage}%</TableCell>
+                  <TableCell>
+                    <Box
+                      sx={{
+                        display: 'inline-block',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        bgcolor: subject.grade.includes('A') ? 'success.light' :
+                                  subject.grade.includes('B') ? 'info.light' :
+                                  subject.grade.includes('C') ? 'warning.light' :
+                                  'error.light',
+                      }}
+                    >
+                      {subject.grade}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  const renderTimetableTab = () => {
+    if (timetableLoading) {
+      return <CircularProgress />;
+    }
+
+    if (!timetable || timetable.length === 0) {
+      return (
+        <Alert severity="info">
+          No timetable available for this child's class yet.
+        </Alert>
+      );
+    }
+
+    const dayGroups: { [day: string]: TimetableEntry[] } = {};
+    timetable.forEach(entry => {
+      if (!dayGroups[entry.day]) {
+        dayGroups[entry.day] = [];
+      }
+      dayGroups[entry.day].push(entry);
+    });
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const sortedDays = Object.keys(dayGroups).sort(
+      (a, b) => days.indexOf(a) - days.indexOf(b)
+    );
+
+    return (
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Class Timetable
+        </Typography>
+        
+        {sortedDays.map(day => (
+          <Box key={day} mb={3}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {day}
+            </Typography>
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Time</TableCell>
+                    <TableCell>Subject</TableCell>
+                    <TableCell>Teacher</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {dayGroups[day].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(entry => (
+                    <TableRow key={entry._id}>
+                      <TableCell>
+                        {entry.startTime} - {entry.endTime}
+                      </TableCell>
+                      <TableCell>{entry.subject}</TableCell>
+                      <TableCell>
+                        {entry.teacher ? `${entry.teacher.firstName} ${entry.teacher.lastName}` : 'N/A'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        ))}
+      </Box>
+    );
+  };
+
+  const getTabContent = (tabIndex: number) => {
+    switch (tabIndex) {
+      case 0:
+        return renderOverview();
+      case 1:
+        return renderPerformanceTab();
+      case 2:
+        return renderAttendanceTab();
+      case 3:
+        return renderFeesTab();
+      case 4:
+        return renderResultsTab();
+      case 5:
+        return renderTimetableTab();
+      default:
+        return <div>Tab content not available</div>;
+    }
   };
 
   if (loading || childrenLoading) {
@@ -330,225 +569,15 @@ const ParentDashboard: React.FC = () => {
         <Grid item xs={12}>
           <Paper>
             <Tabs value={activeTab} onChange={handleTabChange} centered>
+              <Tab label="Overview" />
               <Tab label="Performance" />
               <Tab label="Attendance" />
               <Tab label="Fees" />
+              <Tab label="Results" />
+              <Tab label="Timetable" />
             </Tabs>
 
-            {activeTab === 0 && (
-              <Box p={3}>
-                {performanceSummary && (
-                  <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h6" gutterBottom>Overall Performance</Typography>
-                          <Typography variant="h4">{performanceSummary.averageScore.toFixed(1)}%</Typography>
-                          <Typography color="textSecondary">
-                            Total Assessments: {performanceSummary.totalAssessments}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} md={8}>
-        <Card>
-          <CardContent>
-                          <Typography variant="h6" gutterBottom>Subject Averages</Typography>
-                          <TableContainer>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Subject</TableCell>
-                                  <TableCell align="right">Average</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {Object.entries(performanceSummary.subjectAverages).map(([subject, data]) => (
-                                  <TableRow key={subject}>
-                                    <TableCell>{subject}</TableCell>
-                                    <TableCell align="right">{data.average.toFixed(1)}%</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                )}
-
-                <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                        <TableCell>Subject</TableCell>
-                        <TableCell>Score</TableCell>
-                        <TableCell>Grade</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Teacher</TableCell>
-                        <TableCell>Date</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                      {marks.map((mark) => (
-                        <TableRow key={mark._id}>
-                          <TableCell>{mark.subject}</TableCell>
-                          <TableCell>{mark.score}/{mark.total_score}</TableCell>
-                          <TableCell>{mark.grade}</TableCell>
-                          <TableCell>{mark.assessment_type}</TableCell>
-                          <TableCell>{mark.teacher.firstName} {mark.teacher.lastName}</TableCell>
-                          <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-                </TableContainer>
-              </Box>
-            )}
-
-            {activeTab === 1 && (
-              <Box p={3}>
-                {attendanceSummary && (
-                  <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h6" gutterBottom>Attendance Overview</Typography>
-                          <Typography variant="h4">{attendanceSummary.presentPercentage.toFixed(1)}%</Typography>
-                          <Typography color="textSecondary">
-                            Present Rate
-                          </Typography>
-          </CardContent>
-        </Card>
-                    </Grid>
-                    <Grid item xs={12} md={8}>
-        <Card>
-          <CardContent>
-                          <Typography variant="h6" gutterBottom>Attendance Summary</Typography>
-                          <Grid container spacing={2}>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Present</Typography>
-                              <Typography variant="h6">{attendanceSummary.present}</Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Absent</Typography>
-                              <Typography variant="h6">{attendanceSummary.absent}</Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="body2" color="textSecondary">Late</Typography>
-                              <Typography variant="h6">{attendanceSummary.late}</Typography>
-                            </Grid>
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                )}
-
-                <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Reason</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                      {attendance.map((record) => (
-                        <TableRow key={record._id}>
-                          <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{record.status}</TableCell>
-                          <TableCell>{record.reason || '-'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-                </TableContainer>
-              </Box>
-            )}
-
-            {activeTab === 2 && (
-              <Box p={3}>
-                {fees.length === 0 ? (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    <Typography variant="body1">
-                      <strong>No fees activated yet</strong><br/>
-                      Fees will appear here once the school administration assigns them to your child.
-                    </Typography>
-                  </Alert>
-                ) : (
-                  <>
-                    {feeSummary && (
-                      <Grid container spacing={3} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={4}>
-                          <Card>
-                            <CardContent>
-                              <Typography variant="h6" gutterBottom>Fee Overview</Typography>
-                              <Typography variant="h4">
-                                ${(feeSummary.paidFees || 0).toLocaleString()}
-                              </Typography>
-                              <Typography color="textSecondary">
-                                Total Paid
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                        <Grid item xs={12} md={8}>
-                          <Card>
-                            <CardContent>
-                              <Typography variant="h6" gutterBottom>Fee Summary</Typography>
-                              <Grid container spacing={2}>
-                                <Grid item xs={4}>
-                                  <Typography variant="body2" color="textSecondary">Total Fees</Typography>
-                                  <Typography variant="h6">${(feeSummary.totalFees || 0).toLocaleString()}</Typography>
-                                </Grid>
-                                <Grid item xs={4}>
-                                  <Typography variant="body2" color="textSecondary">Paid</Typography>
-                                  <Typography variant="h6">${(feeSummary.paidFees || 0).toLocaleString()}</Typography>
-                                </Grid>
-                                <Grid item xs={4}>
-                                  <Typography variant="body2" color="textSecondary">Outstanding</Typography>
-                                  <Typography variant="h6">${(feeSummary.outstandingFees || 0).toLocaleString()}</Typography>
-                                </Grid>
-                              </Grid>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      </Grid>
-                    )}
-
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Academic Year</TableCell>
-                            <TableCell>Term</TableCell>
-                            <TableCell>Amount Due</TableCell>
-                            <TableCell>Amount Paid</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Due Date</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {fees.map((fee) => (
-                            <TableRow key={fee._id}>
-                              <TableCell>{fee.academic_year}</TableCell>
-                              <TableCell>{fee.term}</TableCell>
-                              <TableCell>${(fee.amount_due || 0).toLocaleString()}</TableCell>
-                              <TableCell>${(fee.amount_paid || 0).toLocaleString()}</TableCell>
-                              <TableCell>{fee.status}</TableCell>
-                              <TableCell>{new Date(fee.due_date).toLocaleDateString()}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </>
-                )}
-              </Box>
-            )}
+            {getTabContent(activeTab)}
           </Paper>
         </Grid>
       </Grid>

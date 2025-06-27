@@ -81,12 +81,12 @@ router.get('/stats', authenticateToken, requireRole(['teacher']), async (req: Re
     // Get recent marks/assessments
     const recentMarks = await Mark.find({
       teacher: user._id,
-      created_at: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
     }).limit(10);
     
     // Calculate average performance
     const averageScore = recentMarks.length > 0 ? 
-      Math.round(recentMarks.reduce((sum, mark) => sum + (mark.score / mark.total_score) * 100, 0) / recentMarks.length) : 0;
+      Math.round(recentMarks.reduce((sum, mark) => sum + (mark.score / mark.totalScore) * 100, 0) / recentMarks.length) : 0;
     
     res.json({
       totalClasses: teacherClasses.length,

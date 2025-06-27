@@ -13,7 +13,8 @@ import {
   HelpCircle,
   Bell,
   X,
-  UserPlus
+  UserPlus,
+  Award
 } from 'lucide-react';
 import { useAuthStore } from '../../lib/store';
 
@@ -56,7 +57,7 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
     const superAdminItems = [
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
-      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/marks', icon: <BookOpen size={20} />, label: 'Results' },
       { to: '/teachers', icon: <Users size={20} />, label: 'Teachers' },
       { to: '/parents', icon: <Users size={20} />, label: 'Parents' },
       { to: '/classes', icon: <BookOpen size={20} />, label: 'Classes' },
@@ -90,10 +91,11 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
       { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
-      { to: '/marks', icon: <BookOpen size={20} />, label: 'Marks' },
+      { to: '/marks', icon: <BookOpen size={20} />, label: 'Results' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
     ];
     
     const parentItems = [
@@ -102,9 +104,21 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
       { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
       { to: '/fees', icon: <DollarSign size={20} />, label: 'Fees' },
       { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
+      { to: '/results', icon: <Award size={20} />, label: 'Results' },
       { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
       { to: '/suggestions', icon: <HelpCircle size={20} />, label: 'Suggestions/Questions' },
-      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' }
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
+    ];
+    
+    const studentItems = [
+      { to: '/dashboard', icon: <BarChart3 size={20} />, label: 'Dashboard' },
+      { to: '/results', icon: <Award size={20} />, label: 'My Results' },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance' },
+      { to: '/timetable', icon: <Calendar size={20} />, label: 'Timetable' },
+      { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages' },
+      { to: '/announcements', icon: <Bell size={20} />, label: 'Announcements' },
+      { to: '/settings', icon: <Settings size={20} />, label: 'Settings' }
     ];
     
     switch (user?.role) {
@@ -116,6 +130,8 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: Sideb
         return teacherItems;
       case 'parent':
         return parentItems;
+      case 'student':
+        return studentItems;
       default:
         return [];
     }

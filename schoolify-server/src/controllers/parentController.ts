@@ -69,7 +69,7 @@ export const getChildPerformance = async (req: Request, res: Response) => {
       if (!summary.subjectAverages[mark.subject]) {
         summary.subjectAverages[mark.subject] = { total: 0, count: 0, average: 0 };
       }
-      const percentage = (mark.score / mark.total_score) * 100;
+      const percentage = (mark.score / mark.totalScore) * 100;
       summary.subjectAverages[mark.subject].total += percentage;
       summary.subjectAverages[mark.subject].count++;
       totalPercentage += percentage;
