@@ -60,7 +60,7 @@ interface Mark {
   student: Student;
   subject: string;
   score: number;
-  total_score: number;
+  totalScore: number;
   grade: string;
   assessment_type: string;
   date: string;
@@ -190,6 +190,8 @@ const TeacherDashboard: React.FC = () => {
     score: 0,
     totalScore: 100,
     assessmentType: 'exam',
+    term: 'Term 1',
+    academicYear: new Date().getFullYear().toString(),
     remarks: ''
   });
   const [attendanceForm, setAttendanceForm] = useState<{
@@ -285,31 +287,82 @@ const TeacherDashboard: React.FC = () => {
 
   const handleAddMark = async () => {
     try {
-      await api.post('/marks', {
-        ...markForm,
-        classId: selectedClass
+      // Form validation
+      if (!markForm.studentId || !markForm.subject || markForm.score < 0) {
+        console.error('Invalid mark form data:', markForm);
+        return;
+      }
+
+      // Make API call to add the mark
+      const response = await api.post('/api/marks', {
+        studentId: markForm.studentId,
+        classId: selectedClass,
+        subject: markForm.subject,
+        score: markForm.score,
+        totalScore: markForm.totalScore,
+        assessmentType: markForm.assessmentType,
+        term: markForm.term,
+        academicYear: markForm.academicYear,
+        remarks: markForm.remarks
       });
+
       setOpenMarkDialog(false);
+      
+      // Reset the form
+      setMarkForm({
+        studentId: '',
+        subject: '',
+        score: 0,
+        totalScore: 100,
+        assessmentType: 'exam',
+        term: 'Term 1',
+        academicYear: new Date().getFullYear().toString(),
+        remarks: ''
+      });
+      
+      // Refresh data
       fetchClassData();
-    } catch (err) {
-      setError('Error adding mark');
+      
+      // Success message
+      console.log('Mark added successfully', response.data);
+    } catch (error) {
+      console.error('Error adding mark:', error);
     }
   };
 
   const handleMarkAttendance = async () => {
     try {
-      const attendanceRecords = Object.entries(attendanceForm).map(([studentId, data]) => ({
+      if (!selectedClass) {
+        console.error('No class selected');
+        return;
+      }
+      
+      // Format attendance data for API
+      const attendanceData = Object.entries(attendanceForm).map(([studentId, data]) => ({
         studentId,
-        ...data
+        status: data.status,
+        reason: data.reason || '',
+        date: new Date().toISOString()
       }));
-
-      await api.post(`/attendance/class/${selectedClass}`, {
-        attendanceRecords
+      
+      // Make API call
+      await api.post(`/api/attendance/class/${selectedClass}`, {
+        attendance: attendanceData,
+        classId: selectedClass
       });
+      
       setOpenAttendanceDialog(false);
+      
+      // Reset form
+      setAttendanceForm({});
+      
+      // Refresh data
       fetchClassData();
-    } catch (err) {
-      setError('Error marking attendance');
+      
+      // Success message
+      console.log('Attendance marked successfully');
+    } catch (error) {
+      console.error('Error marking attendance:', error);
     }
   };
 
@@ -486,7 +539,7 @@ const TeacherDashboard: React.FC = () => {
                   onClick={() => setOpenMarkDialog(true)}
                   sx={{ mb: 2 }}
                 >
-                  Add Mark
+                  Add New Mark
                 </Button>
 
                 <TableContainer>
@@ -506,7 +559,7 @@ const TeacherDashboard: React.FC = () => {
                         <TableRow key={mark._id}>
                           <TableCell>{mark.student.first_name} {mark.student.last_name}</TableCell>
                           <TableCell>{mark.subject}</TableCell>
-                          <TableCell>{mark.score}/{mark.total_score}</TableCell>
+                          <TableCell>{mark.score}/{mark.totalScore}</TableCell>
                           <TableCell>{mark.grade}</TableCell>
                           <TableCell>{mark.assessment_type}</TableCell>
                           <TableCell>{new Date(mark.date).toLocaleDateString()}</TableCell>
@@ -559,11 +612,12 @@ const TeacherDashboard: React.FC = () => {
 
       {/* Add Mark Dialog */}
       <Dialog open={openMarkDialog} onClose={() => setOpenMarkDialog(false)}>
-        <DialogTitle>Add Mark</DialogTitle>
+        <DialogTitle>Add New Mark</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Student</InputLabel>
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="student-label">Student</InputLabel>
             <Select
+              labelId="student-label"
               value={markForm.studentId}
               onChange={handleMarkFormChange('studentId')}
             >
@@ -574,73 +628,105 @@ const TeacherDashboard: React.FC = () => {
               ))}
             </Select>
           </FormControl>
-
-          <TextField
-            fullWidth
-            label="Subject"
-            value={markForm.subject}
-            onChange={handleMarkFormChange('subject')}
-            sx={{ mt: 2 }}
-          />
-
-          <TextField
-            fullWidth
-            type="number"
-            label="Score"
-            value={markForm.score}
-            onChange={handleMarkFormChange('score')}
-            sx={{ mt: 2 }}
-          />
-
-          <TextField
-            fullWidth
-            type="number"
-            label="Total Score"
-            value={markForm.totalScore}
-            onChange={handleMarkFormChange('totalScore')}
-            sx={{ mt: 2 }}
-          />
-
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Assessment Type</InputLabel>
+          
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="subject-label">Subject</InputLabel>
             <Select
+              labelId="subject-label"
+              value={markForm.subject}
+              onChange={handleMarkFormChange('subject')}
+            >
+              <MenuItem value="English">English</MenuItem>
+              <MenuItem value="Mathematics">Mathematics</MenuItem>
+              <MenuItem value="Science">Science</MenuItem>
+              <MenuItem value="Social Studies">Social Studies</MenuItem>
+              <MenuItem value="Physics">Physics</MenuItem>
+              <MenuItem value="Chemistry">Chemistry</MenuItem>
+              <MenuItem value="Biology">Biology</MenuItem>
+              <MenuItem value="Geography">Geography</MenuItem>
+              <MenuItem value="History">History</MenuItem>
+              <MenuItem value="Religious Studies">Religious Studies</MenuItem>
+              <MenuItem value="Physical Education">Physical Education</MenuItem>
+              <MenuItem value="French">French</MenuItem>
+              <MenuItem value="ICT">ICT</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="assessment-label">Assessment Type</InputLabel>
+            <Select
+              labelId="assessment-label"
               value={markForm.assessmentType}
               onChange={handleMarkFormChange('assessmentType')}
             >
-              <MenuItem value="quiz">Quiz</MenuItem>
-              <MenuItem value="homework">Homework</MenuItem>
               <MenuItem value="exam">Exam</MenuItem>
-              <MenuItem value="project">Project</MenuItem>
+              <MenuItem value="test">Test</MenuItem>
             </Select>
           </FormControl>
-
+          
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="term-label">Term</InputLabel>
+            <Select
+              labelId="term-label"
+              value={markForm.term}
+              onChange={handleMarkFormChange('term')}
+            >
+              <MenuItem value="Term 1">Term 1</MenuItem>
+              <MenuItem value="Term 2">Term 2</MenuItem>
+              <MenuItem value="Term 3">Term 3</MenuItem>
+              <MenuItem value="Annual">Annual</MenuItem>
+            </Select>
+          </FormControl>
+          
           <TextField
+            margin="normal"
+            label="Score"
+            type="number"
             fullWidth
+            InputProps={{ inputProps: { min: 0, max: 100 } }}
+            value={markForm.score}
+            onChange={(e) => handleMarkFormChange('score')(e)}
+          />
+          
+          <TextField
+            margin="normal"
+            label="Total Score"
+            type="number"
+            fullWidth
+            value={markForm.totalScore}
+            onChange={(e) => handleMarkFormChange('totalScore')(e)}
+          />
+          
+          <TextField
+            margin="normal"
             label="Remarks"
+            fullWidth
+            multiline
+            rows={2}
             value={markForm.remarks}
-            onChange={handleMarkFormChange('remarks')}
-            sx={{ mt: 2 }}
+            onChange={(e) => handleMarkFormChange('remarks')(e)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenMarkDialog(false)}>Cancel</Button>
-          <Button onClick={handleAddMark} variant="contained" color="primary">
-            Add
+          <Button onClick={() => setOpenMarkDialog(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleAddMark} color="primary" variant="contained">
+            Save
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Mark Attendance Dialog */}
-      <Dialog
-        open={openAttendanceDialog}
-        onClose={() => setOpenAttendanceDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={openAttendanceDialog} onClose={() => setOpenAttendanceDialog(false)}>
         <DialogTitle>Mark Attendance</DialogTitle>
         <DialogContent>
-          <TableContainer>
-            <Table>
+          <Typography variant="subtitle1" gutterBottom>
+            Date: {new Date().toLocaleDateString()}
+          </Typography>
+          
+          <TableContainer component={Paper}>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>Student</TableCell>
@@ -651,11 +737,15 @@ const TeacherDashboard: React.FC = () => {
               <TableBody>
                 {students.map((student) => (
                   <TableRow key={student._id}>
-                    <TableCell>{student.first_name} {student.last_name}</TableCell>
+                    <TableCell>
+                      {student.first_name} {student.last_name}
+                    </TableCell>
                     <TableCell>
                       <Select
                         value={attendanceForm[student._id]?.status || 'present'}
                         onChange={handleAttendanceFormChange(student._id, 'status')}
+                        size="small"
+                        fullWidth
                       >
                         <MenuItem value="present">Present</MenuItem>
                         <MenuItem value="absent">Absent</MenuItem>
@@ -664,10 +754,10 @@ const TeacherDashboard: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <TextField
-                        fullWidth
+                        size="small"
+                        placeholder="Reason (optional)"
                         value={attendanceForm[student._id]?.reason || ''}
                         onChange={handleAttendanceFormChange(student._id, 'reason')}
-                        placeholder="Reason (optional)"
                       />
                     </TableCell>
                   </TableRow>
@@ -677,8 +767,10 @@ const TeacherDashboard: React.FC = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAttendanceDialog(false)}>Cancel</Button>
-          <Button onClick={handleMarkAttendance} variant="contained" color="primary">
+          <Button onClick={() => setOpenAttendanceDialog(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleMarkAttendance} color="primary" variant="contained">
             Save
           </Button>
         </DialogActions>

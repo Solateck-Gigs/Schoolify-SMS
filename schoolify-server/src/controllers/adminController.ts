@@ -42,7 +42,7 @@ export const getAllStudentsPerformance = async (req: Request, res: Response) => 
         if (!summary.subjectAverages[mark.subject]) {
           summary.subjectAverages[mark.subject] = { total: 0, count: 0, average: 0 };
         }
-        const percentage = (mark.score / mark.total_score) * 100;
+        const percentage = (mark.score / mark.totalScore) * 100;
         summary.subjectAverages[mark.subject].total += percentage;
         summary.subjectAverages[mark.subject].count++;
         totalPercentage += percentage;
@@ -205,7 +205,7 @@ export const getClassStatistics = async (req: Request, res: Response) => {
 
     // Get marks for class
     const marksQuery: any = { class: classId };
-    if (academicYear) marksQuery.academic_year = academicYear;
+    if (academicYear) marksQuery.academicYear = academicYear;
     if (term) marksQuery.term = term;
 
     const marks = await Mark.find(marksQuery);
@@ -237,7 +237,7 @@ export const getClassStatistics = async (req: Request, res: Response) => {
       if (!statistics.performance.subjectAverages[mark.subject]) {
         statistics.performance.subjectAverages[mark.subject] = { total: 0, count: 0, average: 0 };
       }
-      const percentage = (mark.score / mark.total_score) * 100;
+      const percentage = (mark.score / mark.totalScore) * 100;
       statistics.performance.subjectAverages[mark.subject].total += percentage;
       statistics.performance.subjectAverages[mark.subject].count++;
       totalPercentage += percentage;

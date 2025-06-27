@@ -28,7 +28,7 @@ router.get('/class/:classId', authenticateToken, requireRole(['admin', 'super_ad
     const marks = await Mark.find({ class: classId })
       .populate('student', 'firstName lastName user_id_number admissionNumber')
       .populate('teacher', 'firstName lastName')
-      .sort({ date: -1 });
+      .sort({ createdAt: -1 });
 
     res.json(marks);
   } catch (error) {
@@ -65,7 +65,7 @@ router.get('/student/:studentId', authenticateToken, requireRole(['admin', 'supe
 
     const marks = await Mark.find({ student: studentId })
       .populate('teacher', 'firstName lastName')
-      .sort({ date: -1 });
+      .sort({ createdAt: -1 });
 
     res.json(marks);
   } catch (error) {
@@ -78,10 +78,10 @@ router.get('/student/:studentId', authenticateToken, requireRole(['admin', 'supe
 router.post('/', authenticateToken, requireRole(['admin', 'super_admin', 'teacher']), async (req: Request, res: Response) => {
   try {
     const { user } = req;
-    const { studentId, classId, subject, score, total_score, assessment_type, term, remarks } = req.body;
+    const { studentId, classId, subject, score, totalScore, assessmentType, term, remarks } = req.body;
 
     // Validate required fields
-    if (!studentId || !classId || !subject || score === undefined || !total_score || !assessment_type || !term) {
+    if (!studentId || !classId || !subject || score === undefined || !totalScore || !assessmentType || !term) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -104,27 +104,27 @@ router.post('/', authenticateToken, requireRole(['admin', 'super_admin', 'teache
     }
 
     // Calculate grade based on percentage
-    const percentage = (score / total_score) * 100;
+    const percentage = (score / totalScore) * 100;
     let grade = 'F';
     if (percentage >= 90) grade = 'A+';
     else if (percentage >= 80) grade = 'A';
-    else if (percentage >= 70) grade = 'B';
-    else if (percentage >= 60) grade = 'C';
-    else if (percentage >= 50) grade = 'D';
+    else if (percentage >= 70) grade = 'B+';
+    else if (percentage >= 60) grade = 'B';
+    else if (percentage >= 50) grade = 'C+';
+    else if (percentage >= 40) grade = 'C';
 
     const mark = new Mark({
       student: studentId,
       class: classId,
       subject,
       score,
-      total_score,
+      totalScore,
       grade,
-      assessment_type,
+      assessmentType,
       term,
       remarks,
       teacher: user._id,
-      academic_year: new Date().getFullYear().toString(),
-      date: new Date()
+      academicYear: new Date().getFullYear().toString()
     });
 
     await mark.save();
@@ -166,23 +166,24 @@ router.post('/bulk', authenticateToken, requireRole(['admin', 'super_admin', 'te
       let grade = 'F';
       if (percentage >= 90) grade = 'A+';
       else if (percentage >= 80) grade = 'A';
-      else if (percentage >= 70) grade = 'B';
-      else if (percentage >= 60) grade = 'C';
-      else if (percentage >= 50) grade = 'D';
+      else if (percentage >= 70) grade = 'B+';
+      else if (percentage >= 60) grade = 'B';
+      else if (percentage >= 50) grade = 'C+';
+      else if (percentage >= 40) grade = 'C';
 
       // Check if mark already exists, update or create
       const existingMark = await Mark.findOne({
         student: studentId,
         class: classId,
         subject,
-        assessment_type: assessmentType,
+        assessmentType,
         term,
-        academic_year: new Date().getFullYear().toString()
+        academicYear: new Date().getFullYear().toString()
       });
 
       if (existingMark) {
         existingMark.score = score;
-        existingMark.total_score = totalScore;
+        existingMark.totalScore = totalScore;
         existingMark.grade = grade;
         existingMark.remarks = remarks;
         existingMark.teacher = user._id;
@@ -194,14 +195,13 @@ router.post('/bulk', authenticateToken, requireRole(['admin', 'super_admin', 'te
           class: classId,
           subject,
           score,
-          total_score: totalScore,
+          totalScore,
           grade,
-          assessment_type: assessmentType,
+          assessmentType,
           term,
           remarks,
           teacher: user._id,
-          academic_year: new Date().getFullYear().toString(),
-          date: new Date()
+          academicYear: new Date().getFullYear().toString()
         });
         await newMark.save();
         savedMarks.push(newMark);

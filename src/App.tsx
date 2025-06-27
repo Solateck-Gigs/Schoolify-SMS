@@ -11,6 +11,7 @@ import FeesPage from './pages/Fee/FeesPage';
 import TimetablePage from './pages/Timetable/TimetablePage';
 import MessagesPage from './pages/Message/MessagesPage';
 import MarksPage from './pages/Marks/MarksPage';
+import ResultsPage from './pages/Marks/ResultsPage';
 import AttendancePage from './pages/Attendance/AttendancePage';
 import { useAuthStore } from './lib/store';
 import AnnouncementsPage from './pages/AnnouncementsPage';
@@ -220,6 +221,18 @@ function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['super_admin', 'admin', 'teacher']}>
                   <MarksPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Results - Students Only */}
+          <Route
+            path="/results"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['student', 'parent']}>
+                  <ResultsPage />
                 </RoleRoute>
               </ProtectedRoute>
             }

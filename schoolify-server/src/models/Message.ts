@@ -5,7 +5,7 @@ export interface IMessage extends Document {
   receiver: mongoose.Types.ObjectId; // User ID of the receiver (e.g., admin, teacher)
   subject: string;
   content: string;
-  type: 'suggestion' | 'question' | 'general';
+  type: 'suggestion' | 'question' | 'general' | 'academic';
   read_by_receiver: boolean;
   created_at: Date;
   updated_at: Date;
@@ -34,7 +34,7 @@ const MessageSchema: Schema = new Schema(
     },
     type: {
       type: String,
-      enum: ['suggestion', 'question', 'general'],
+      enum: ['suggestion', 'question', 'general', 'academic'],
       default: 'general',
     },
     read_by_receiver: {

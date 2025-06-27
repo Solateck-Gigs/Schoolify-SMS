@@ -8,12 +8,17 @@ import * as adminController from '../controllers/adminController';
 const router = express.Router();
 
 // Mark routes (for teachers)
-router.get('/marks/class/:classId', authenticate, authorize(['teacher']), markController.getClassMarks);
+router.get('/marks', authenticate, authorize(['teacher', 'admin']), markController.getClassMarks);
 router.get('/marks/student/:studentId', authenticate, authorize(['teacher']), markController.getStudentMarks);
 router.post('/marks', authenticate, authorize(['teacher']), markController.addMark);
+router.post('/marks/bulk', authenticate, authorize(['teacher']), markController.bulkAddOrUpdateMarks);
 router.put('/marks/:markId', authenticate, authorize(['teacher']), markController.updateMark);
 router.delete('/marks/:markId', authenticate, authorize(['teacher']), markController.deleteMark);
 router.get('/marks/student/:studentId/summary', authenticate, authorize(['teacher']), markController.getStudentPerformanceSummary);
+router.post('/marks/send-to-parents', authenticate, authorize(['teacher']), markController.sendMarksToParents);
+
+// Student results route
+router.get('/students/:studentId/results', authenticate, authorize(['student']), markController.getStudentResults);
 
 // Attendance routes (for teachers)
 router.get('/attendance/class/:classId', authenticate, authorize(['teacher']), attendanceController.getClassAttendance);
