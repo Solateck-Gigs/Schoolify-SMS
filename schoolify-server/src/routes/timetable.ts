@@ -5,7 +5,8 @@ import {
   getClassTimetable,
   getTeacherTimetable,
   updateTimetableEntry,
-  deleteTimetableEntry
+  deleteTimetableEntry,
+  getStudentTimetable
 } from '../controllers/timetableController';
 
 const router = Router();
@@ -30,6 +31,14 @@ router.get(
   '/teacher/:teacherId',
   authenticateToken,
   getTeacherTimetable
+);
+
+// Get timetable for the logged-in student
+router.get(
+  '/student',
+  authenticateToken,
+  requireRole(['student']),
+  getStudentTimetable
 );
 
 // Update timetable entry (admin and super_admin only)

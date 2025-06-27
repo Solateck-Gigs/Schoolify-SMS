@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, Grid, CircularProgress, Alert } from '@mui/material';
+import { Link } from 'react-router-dom';
+import { Box, Typography, Card, CardContent, Grid, CircularProgress, Alert, Button } from '@mui/material';
 import { useAuthStore } from '../../lib/store';
 import api from '../../services/api';
 import { BookOpen, Clock, Award, Target, Calendar, TrendingUp } from 'lucide-react';
@@ -182,6 +183,94 @@ const StudentDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Quick Access Section */}
+      <Box mt={4}>
+        <Typography variant="h5" gutterBottom>
+          Quick Access
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={6} sm={4} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Calendar size={40} color="#4285F4" style={{ margin: '0 auto 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Timetable
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  component={Link} 
+                  to="/timetable"
+                  fullWidth
+                >
+                  View
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <TrendingUp size={40} color="#0F9D58" style={{ margin: '0 auto 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Results
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  component={Link} 
+                  to="/results"
+                  fullWidth
+                >
+                  View
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Clock size={40} color="#DB4437" style={{ margin: '0 auto 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Attendance
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  component={Link} 
+                  to="/attendance"
+                  fullWidth
+                >
+                  View
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Award size={40} color="#F4B400" style={{ margin: '0 auto 16px' }} />
+                <Typography variant="h6" gutterBottom>
+                  Report Cards
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  component={Link} 
+                  to="/report-cards"
+                  fullWidth
+                >
+                  View
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
     </Box>
   );
 };

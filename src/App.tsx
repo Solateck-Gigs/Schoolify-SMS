@@ -264,7 +264,7 @@ function App() {
             path="/timetable"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['teacher', 'student', 'admin', 'super_admin']}>
+                <RoleRoute allowedRoles={['teacher', 'student', 'admin', 'super_admin', 'parent']}>
                   <TimetablePage />
                 </RoleRoute>
               </ProtectedRoute>
