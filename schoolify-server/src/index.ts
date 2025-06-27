@@ -32,27 +32,37 @@ const httpServer = createServer(app);
 // Define allowed origins
 const allowedOrigins = [
   'http://localhost:5173', 
+  'http://localhost:5174',
   'https://schoolify-sms.vercel.app', 
   'https://schoolify-sms-v2.vercel.app'
 ];
 
-// Custom CORS middleware to handle multiple origins
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
+// Configure CORS options
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token', 'Accept', 'Accept-Version', 'Content-Length', 'Content-MD5', 'Date', 'X-Api-Version'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
 
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
+// Apply CORS middleware to all routes
+app.use(cors(corsOptions));
+
+// Handle OPTIONS method explicitly
+app.options('*', cors(corsOptions));
 
 const io = new Server(httpServer, {
   cors: {
@@ -63,9 +73,9 @@ const io = new Server(httpServer, {
         callback(new Error('Not allowed by CORS'));
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"]
+    methods: corsOptions.methods,
+    credentials: corsOptions.credentials,
+    allowedHeaders: corsOptions.allowedHeaders
   },
   allowEIO3: true, // Allow Engine.IO version 3 clients
   pingTimeout: 60000, // Increase ping timeout to handle slow connections
